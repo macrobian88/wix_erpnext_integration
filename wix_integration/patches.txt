@@ -1,3 +1,7 @@
-wix_integration.patches.v1_0.add_wix_fields_to_item
-wix_integration.patches.v1_0.add_wix_fields_to_sales_order
-wix_integration.patches.v1_0.add_wix_fields_to_customer
+# Patch entries for database migrations
+# Each patch must be unique, sorted by date
+# Format: module_name.patches.patch_file_name
+
+wix_integration.patches.v1_0.create_wix_integration_settings
+wix_integration.patches.v1_0.migrate_existing_items
+wix_integration.patches.v1_0.setup_custom_fields
