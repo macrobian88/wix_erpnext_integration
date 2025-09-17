@@ -283,8 +283,7 @@ class WixIntegrationInstaller:
 				'operation_type': 'Installation',
 				'status': 'Success',
 				'message': 'Wix ERPNext Integration installed successfully',
-				'timestamp': datetime.now(),
-				'user': get_fullname()
+				'timestamp': datetime.now()
 			})
 			welcome_log.insert(ignore_permissions=True)
 			frappe.db.commit()
@@ -463,6 +462,22 @@ def after_install():
 	except Exception as e:
 		frappe.log_error(f"Installation error: {str(e)}", "Wix Integration Installation")
 		frappe.throw(_("Installation failed: {0}").format(str(e)))
+
+def after_migrate():
+	"""After migration hook function"""
+	try:
+		# Run installation steps that are safe to run multiple times
+		installer = WixIntegrationInstaller()
+		
+		# Only run non-destructive setup operations
+		installer.setup_custom_fields()
+		installer.setup_user_roles()
+		
+		print("Wix Integration migration completed successfully")
+		
+	except Exception as e:
+		frappe.log_error(f"Migration error: {str(e)}", "Wix Integration Migration")
+		print(f"Warning: Migration completed with errors: {str(e)}")
 
 def install_wix_integration():
 	"""Alternative installation function"""
