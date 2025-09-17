@@ -1,427 +1,497 @@
 # -*- coding: utf-8 -*-
-"""Enhanced Product Synchronization Service
+"""Product Sync API - Handles ERPNext to Wix product synchronization
 
-This module provides production-grade product synchronization between ERPNext and Wix,
-including comprehensive validation, error handling, and logging.
+This module provides production-grade bidirectional sync between ERPNext Items and Wix Products
+using the Wix Stores v3 API with proper error handling, validation, and logging.
 """
 
 import frappe
 import json
 from datetime import datetime
-from typing import Dict, Any, Optional, List
 from frappe import _
-from frappe.utils import get_fullname
+from frappe.utils import flt, cstr, get_site_url
 from wix_integration.wix_integration.wix_connector import WixConnector
 
-class WixProductSyncService:
-	"""Enhanced service for synchronizing products between ERPNext and Wix"""
+def sync_product_to_wix(item_doc, trigger_type="auto"):
+	"""
+	Sync an ERPNext Item to Wix as a Product
 	
-	def __init__(self):
-		"""Initialize the sync service with connection and settings"""
-		self.wix_connector = WixConnector()
-		self.settings = self.wix_connector.settings
-		self.validation_errors = []
+	Args:
+		item_doc: ERPNext Item document
+		trigger_type: Type of sync trigger ('auto', 'manual', 'bulk')
 	
-	def sync_product_to_wix(self, item_doc, method=None):
-		"""
-		Synchronize a single product from ERPNext to Wix
+	Returns:
+		dict: Sync result with success status and details
+	"""
+	if not frappe.db.get_single_value('Wix Settings', 'enabled'):
+		return {'success': False, 'error': 'Wix integration is not enabled'}
+	
+	settings = frappe.get_single('Wix Settings')
+	
+	# Check if auto sync is enabled for this trigger
+	if trigger_type == "auto" and not settings.auto_sync_items:
+		return {'success': False, 'message': 'Auto sync is disabled'}
+	
+	try:
+		# Prepare Wix product data according to v3 API specification
+		product_data = build_wix_product_data(item_doc, settings)
 		
-		Args:
-			item_doc: ERPNext Item document
-			method: Frappe hook method (after_insert, on_update, etc.)
-		"""
-		if not self._should_sync_product(item_doc):
-			return
+		# Initialize Wix connector
+		connector = WixConnector()
 		
-		try:
-			# Validate prerequisites
-			if not self._validate_sync_prerequisites():
-				return
+		# Check if item already exists in Wix
+		existing_wix_id = item_doc.get('wix_product_id')
+		
+		if existing_wix_id:
+			# Update existing product
+			result = connector.update_product(existing_wix_id, product_data)
+			operation = "update"
+		else:
+			# Create new product
+			result = connector.create_product(product_data)
+			operation = "create"
+		
+		if result.get('success'):
+			# Update item with Wix details
+			update_item_with_wix_data(item_doc, result, operation)
 			
-			# Transform ERPNext item to Wix product format
-			wix_product_data = self._transform_erpnext_to_wix(item_doc)
+			# Update sync statistics
+			update_sync_statistics(settings, True)
 			
-			# Validate the transformed data
-			if not self._validate_wix_product_data(wix_product_data):
-				self._log_validation_errors(item_doc.name)
-				return
-			
-			# Check if product already exists in Wix
-			existing_mapping = self._get_existing_mapping(item_doc.name)
-			
-			if existing_mapping:
-				# Update existing product
-				result = self._update_wix_product(existing_mapping.wix_product_id, wix_product_data, item_doc)
-			else:
-				# Create new product
-				result = self._create_wix_product(wix_product_data, item_doc)
-			
-			if result.get('success'):
-				self._handle_sync_success(item_doc, result, method)
-			else:
-				self._handle_sync_error(item_doc, result, method)
-				
-		except Exception as e:
-			frappe.log_error(
-				message=f"Unexpected error syncing product {item_doc.name}: {str(e)}",
-				title="Wix Product Sync Error"
+			# Log success
+			create_integration_log(
+				operation_type="Product Sync",
+				reference_doctype="Item",
+				reference_name=item_doc.name,
+				status="Success",
+				message=f"Successfully {operation}d product in Wix",
+				wix_response=result
 			)
-			self._log_integration_event(item_doc.name, 'Error', f"Unexpected error: {str(e)}")
-	
-	def _should_sync_product(self, item_doc) -> bool:
-		"""
-		Determine if the product should be synced to Wix
-		
-		Args:
-			item_doc: ERPNext Item document
 			
-		Returns:
-			bool: True if product should be synced
-		"""
-		if not self.settings or not self.settings.enabled:
-			return False
-		
-		if not self.settings.auto_sync_items:
-			return False
-		
-		# Skip disabled items
-		if item_doc.disabled:
-			return False
-		
-		# Skip template items (only sync variants)
-		if item_doc.has_variants:
-			return False
-		
-		# Skip items that are not meant for sale
-		if not item_doc.is_sales_item:
-			return False
-		
-		return True
-	
-	def _validate_sync_prerequisites(self) -> bool:
-		"""Validate that all prerequisites for syncing are met"""
-		if not self.settings:
-			frappe.log_error("Wix settings not found", "Wix Integration Error")
-			return False
-		
-		if not self.settings.enabled:
-			return False
-		
-		if not all([self.settings.site_id, self.settings.api_key, self.settings.account_id]):
-			frappe.log_error("Missing Wix credentials", "Wix Integration Error")
-			return False
-		
-		# Test connection if in test mode
-		if self.settings.test_mode:
-			connection_test = self.wix_connector.test_connection()
-			if not connection_test.get('success'):
-				frappe.log_error(
-					f"Wix connection test failed: {connection_test.get('error')}",
-					"Wix Integration Error"
-				)
-				return False
-		
-		return True
-	
-	def _transform_erpnext_to_wix(self, item_doc) -> Dict[str, Any]:
-		"""
-		Transform ERPNext Item to Wix product format
-		
-		Args:
-			item_doc: ERPNext Item document
-			
-		Returns:
-			Dict containing Wix product data
-		"""
-		# Base product structure
-		wix_product = {
-			"name": item_doc.item_name or item_doc.name,
-			"productType": "PHYSICAL",  # Default to physical, can be enhanced later
-			"visible": not item_doc.disabled,
-			"physicalProperties": {},
-			"variantsInfo": {
-				"variants": []
+			return {
+				'success': True,
+				'operation': operation,
+				'wix_product_id': result.get('product_id'),
+				'message': f'Product {operation}d successfully in Wix'
 			}
-		}
-		
-		# Add description if configured and available
-		if self.settings.sync_item_description and item_doc.description:
-			# For POC, use plainDescription. In production, convert to rich content
-			wix_product["plainDescription"] = item_doc.description
-		
-		# Add brand if available
-		if item_doc.brand:
-			wix_product["brand"] = {
-				"name": item_doc.brand
-			}
-		
-		# Create single variant with pricing
-		variant = {
-			"price": {
-				"actualPrice": {
-					"amount": str(item_doc.standard_rate or 0)
-				}
-			},
-			"physicalProperties": {},
-			"choices": []
-		}
-		
-		# Add SKU if available
-		if item_doc.item_code:
-			variant["sku"] = item_doc.item_code
-		
-		# Add weight if available
-		if item_doc.weight_per_unit:
-			variant["physicalProperties"]["weight"] = float(item_doc.weight_per_unit)
-		
-		# Add barcode if available
-		if item_doc.barcodes and len(item_doc.barcodes) > 0:
-			variant["barcode"] = item_doc.barcodes[0].barcode
-		
-		wix_product["variantsInfo"]["variants"].append(variant)
-		
-		# Add media if configured and available
-		if self.settings.sync_item_images and item_doc.image:
-			wix_product["media"] = {
-				"items": [
-					{
-						"url": self._get_full_image_url(item_doc.image)
-					}
-				]
-			}
-		
-		return wix_product
-	
-	def _get_full_image_url(self, image_path: str) -> str:
-		"""Get full URL for an image path"""
-		if image_path.startswith('http'):
-			return image_path
-		
-		from frappe.utils import get_site_url
-		return get_site_url() + image_path
-	
-	def _validate_wix_product_data(self, product_data: Dict[str, Any]) -> bool:
-		"""
-		Validate Wix product data before sending to API
-		
-		Args:
-			product_data: Wix product data dictionary
+		else:
+			# Handle failure
+			update_sync_statistics(settings, False)
 			
-		Returns:
-			bool: True if data is valid
-		"""
-		self.validation_errors = []
-		
-		# Required fields validation
-		if not product_data.get('name'):
-			self.validation_errors.append("Product name is required")
-		
-		if not product_data.get('productType'):
-			self.validation_errors.append("Product type is required")
-		
-		if not product_data.get('variantsInfo', {}).get('variants'):
-			self.validation_errors.append("At least one variant is required")
-		
-		# Validate variants
-		for i, variant in enumerate(product_data.get('variantsInfo', {}).get('variants', [])):
-			if not variant.get('price', {}).get('actualPrice', {}).get('amount'):
-				self.validation_errors.append(f"Variant {i+1}: Price is required")
+			# Log error
+			create_integration_log(
+				operation_type="Product Sync",
+				reference_doctype="Item",
+				reference_name=item_doc.name,
+				status="Error",
+				message=f"Failed to {operation} product in Wix: {result.get('error')}",
+				wix_response=result
+			)
 			
-			# Validate price is numeric
-			try:
-				price = variant.get('price', {}).get('actualPrice', {}).get('amount')
-				if price:
-					float(price)
-			except (ValueError, TypeError):
-				self.validation_errors.append(f"Variant {i+1}: Price must be numeric")
+			# Update item sync status
+			update_item_sync_status(item_doc.name, "Error", result.get('error'))
+			
+			return {
+				'success': False,
+				'error': result.get('error'),
+				'error_data': result.get('error_data')
+			}
+			
+	except Exception as e:
+		# Handle unexpected errors
+		error_message = f"Unexpected error during product sync: {str(e)}"
+		frappe.log_error(error_message, "Wix Product Sync Error")
 		
-		# Validate product name length (Wix limit)
-		if len(product_data.get('name', '')) > 80:
-			self.validation_errors.append("Product name exceeds 80 character limit")
+		update_sync_statistics(settings, False)
 		
-		return len(self.validation_errors) == 0
-	
-	def _log_validation_errors(self, item_code: str):
-		"""Log validation errors"""
-		error_message = "; ".join(self.validation_errors)
-		frappe.log_error(
-			f"Wix product validation failed for {item_code}: {error_message}",
-			"Wix Product Validation Error"
+		create_integration_log(
+			operation_type="Product Sync",
+			reference_doctype="Item",
+			reference_name=item_doc.name,
+			status="Error",
+			message=error_message
 		)
-		self._log_integration_event(item_code, 'Validation Error', error_message)
-	
-	def _get_existing_mapping(self, item_code: str):
-		"""Get existing Wix product mapping for an ERPNext item"""
-		try:
-			return frappe.get_doc("Wix Item Mapping", {"erpnext_item_code": item_code})
-		except frappe.DoesNotExistError:
-			return None
-	
-	def _create_wix_product(self, product_data: Dict[str, Any], item_doc) -> Dict[str, Any]:
-		"""Create a new product in Wix"""
-		self._log_integration_event(item_doc.name, 'Sync Started', 'Creating new product in Wix')
 		
-		result = self.wix_connector.create_product(product_data)
+		update_item_sync_status(item_doc.name, "Error", str(e))
+		
+		return {
+			'success': False,
+			'error': error_message
+		}
+
+def build_wix_product_data(item_doc, settings):
+	"""
+	Build Wix product data structure according to Stores v3 API
+	
+	Args:
+		item_doc: ERPNext Item document
+		settings: Wix Settings document
+	
+	Returns:
+		dict: Wix product data structure
+	"""
+	
+	# Get item price from Item Price doctype
+	item_price = get_item_price(item_doc.name)
+	
+	# Build basic product structure
+	product_data = {
+		"name": item_doc.item_name or item_doc.name,
+		"productType": "PHYSICAL",  # Default to physical product
+		"visible": True,
+		"visibleInPos": True
+	}
+	
+	# Add description if enabled
+	if settings.sync_item_description and item_doc.description:
+		product_data["plainDescription"] = item_doc.description
+	
+	# Add physical properties (required for PHYSICAL products)
+	product_data["physicalProperties"] = {}
+	
+	# Add variant info (required)
+	variant_data = {
+		"price": {
+			"actualPrice": {
+				"amount": str(item_price or "0.00")
+			}
+		},
+		"physicalProperties": {}
+	}
+	
+	# Add SKU if available
+	if item_doc.item_code:
+		variant_data["sku"] = item_doc.item_code
+	
+	# Add weight if available
+	if item_doc.weight_per_unit:
+		variant_data["physicalProperties"]["weight"] = flt(item_doc.weight_per_unit)
+	
+	product_data["variantsInfo"] = {
+		"variants": [variant_data]
+	}
+	
+	# Add media (images) if enabled and available
+	if settings.sync_item_images and item_doc.image:
+		media_items = []
+		
+		# Add main image
+		if item_doc.image:
+			site_url = get_site_url(frappe.local.site)
+			full_image_url = f"{site_url}{item_doc.image}" if not item_doc.image.startswith('http') else item_doc.image
+			
+			media_items.append({
+				"url": full_image_url
+			})
+		
+		# Add additional images from Website Item if available
+		try:
+			website_item = frappe.get_doc("Website Item", {"item_code": item_doc.name})
+			if website_item and website_item.website_image:
+				site_url = get_site_url(frappe.local.site)
+				full_image_url = f"{site_url}{website_item.website_image}" if not website_item.website_image.startswith('http') else website_item.website_image
+				
+				if full_image_url not in [item.get('url') for item in media_items]:
+					media_items.append({
+						"url": full_image_url
+					})
+		except:
+			pass  # Website Item might not exist
+		
+		if media_items:
+			product_data["media"] = {
+				"items": media_items
+			}
+	
+	# Add categories if enabled
+	if settings.sync_categories and item_doc.item_group:
+		# Get or create category in Wix
+		category_id = get_or_create_wix_category(item_doc.item_group)
+		if category_id:
+			product_data["mainCategoryId"] = category_id
+	
+	return product_data
+
+def get_item_price(item_code):
+	"""Get item price from Item Price doctype"""
+	try:
+		item_price = frappe.get_all(
+			"Item Price",
+			filters={
+				"item_code": item_code,
+				"selling": 1
+			},
+			fields=["price_list_rate"],
+			order_by="valid_from desc",
+			limit=1
+		)
+		
+		if item_price:
+			return flt(item_price[0].price_list_rate, 2)
+		
+		# Fallback to standard rate from item
+		item = frappe.get_doc("Item", item_code)
+		return flt(item.standard_rate or 0, 2)
+		
+	except Exception as e:
+		frappe.log_error(f"Error getting item price for {item_code}: {str(e)}", "Wix Price Sync")
+		return 0.00
+
+def get_or_create_wix_category(item_group):
+	"""Get existing or create new category in Wix"""
+	try:
+		# Check if category mapping exists
+		mapping = frappe.db.get_value(
+			"Wix Category Mapping",
+			{"erpnext_item_group": item_group},
+			["wix_category_id"]
+		)
+		
+		if mapping:
+			return mapping
+		
+		# Create new category in Wix
+		connector = WixConnector()
+		category_data = {
+			"name": item_group,
+			"visible": True
+		}
+		
+		result = connector.create_category(category_data)
 		
 		if result.get('success'):
+			category_id = result.get('category_id')
+			
 			# Create mapping record
-			self._create_item_mapping(
-				item_doc.name,
-				result.get('product_id'),
-				result.get('product', {})
-			)
+			frappe.get_doc({
+				'doctype': 'Wix Category Mapping',
+				'erpnext_item_group': item_group,
+				'wix_category_id': category_id,
+				'category_name': item_group,
+				'sync_status': 'Synced',
+				'last_sync': datetime.now()
+			}).insert(ignore_permissions=True)
+			
+			frappe.db.commit()
+			return category_id
 		
-		return result
-	
-	def _update_wix_product(self, wix_product_id: str, product_data: Dict[str, Any], item_doc) -> Dict[str, Any]:
-		"""Update an existing product in Wix"""
-		self._log_integration_event(item_doc.name, 'Sync Started', f'Updating existing product {wix_product_id} in Wix')
+		return None
 		
-		result = self.wix_connector.update_product(wix_product_id, product_data)
+	except Exception as e:
+		frappe.log_error(f"Error handling category {item_group}: {str(e)}", "Wix Category Sync")
+		return None
+
+def update_item_with_wix_data(item_doc, wix_result, operation):
+	"""Update ERPNext item with Wix product data"""
+	try:
+		# Update custom fields
+		frappe.db.set_value("Item", item_doc.name, {
+			"wix_product_id": wix_result.get('product_id'),
+			"wix_sync_status": "Synced",
+			"wix_last_sync": datetime.now()
+		})
 		
-		if result.get('success'):
-			# Update mapping record
-			self._update_item_mapping(item_doc.name, result.get('product', {}))
+		# Create or update item mapping
+		mapping_name = frappe.db.get_value(
+			"Wix Item Mapping",
+			{"erpnext_item": item_doc.name}
+		)
 		
-		return result
-	
-	def _create_item_mapping(self, item_code: str, wix_product_id: str, wix_product_data: Dict[str, Any]):
-		"""Create a new Wix item mapping record"""
-		try:
-			mapping = frappe.get_doc({
+		if mapping_name:
+			# Update existing mapping
+			frappe.db.set_value("Wix Item Mapping", mapping_name, {
+				"wix_product_id": wix_result.get('product_id'),
+				"sync_status": "Synced",
+				"last_sync": datetime.now(),
+				"sync_direction": "ERPNext to Wix"
+			})
+		else:
+			# Create new mapping
+			frappe.get_doc({
 				'doctype': 'Wix Item Mapping',
-				'erpnext_item_code': item_code,
-				'wix_product_id': wix_product_id,
-				'wix_product_name': wix_product_data.get('name'),
+				'erpnext_item': item_doc.name,
+				'item_name': item_doc.item_name or item_doc.name,
+				'wix_product_id': wix_result.get('product_id'),
 				'sync_status': 'Synced',
 				'last_sync': datetime.now(),
-				'wix_product_data': json.dumps(wix_product_data, indent=2)
-			})
-			mapping.insert(ignore_permissions=True)
-			frappe.db.commit()
-		except Exception as e:
-			frappe.log_error(f"Error creating item mapping: {str(e)}", "Wix Integration Error")
-	
-	def _update_item_mapping(self, item_code: str, wix_product_data: Dict[str, Any]):
-		"""Update existing Wix item mapping record"""
-		try:
-			mapping = frappe.get_doc("Wix Item Mapping", {"erpnext_item_code": item_code})
-			mapping.wix_product_name = wix_product_data.get('name')
-			mapping.sync_status = 'Synced'
-			mapping.last_sync = datetime.now()
-			mapping.wix_product_data = json.dumps(wix_product_data, indent=2)
-			mapping.save(ignore_permissions=True)
-			frappe.db.commit()
-		except Exception as e:
-			frappe.log_error(f"Error updating item mapping: {str(e)}", "Wix Integration Error")
-	
-	def _handle_sync_success(self, item_doc, result: Dict[str, Any], method: str):
-		"""Handle successful synchronization"""
-		success_message = f"Product {item_doc.name} successfully synced to Wix"
-		if method == 'after_insert':
-			success_message += " (created)"
-		elif method == 'on_update':
-			success_message += " (updated)"
+				'sync_direction': 'ERPNext to Wix'
+			}).insert(ignore_permissions=True)
 		
-		self._log_integration_event(item_doc.name, 'Success', success_message)
-		
-		# Update sync statistics in settings
-		self._update_sync_statistics(success=True)
-		
-		frappe.msgprint(
-			_(f"Product '{item_doc.item_name}' synchronized successfully with Wix"),
-			title=_("Sync Successful"),
-			indicator="green"
-		)
-	
-	def _handle_sync_error(self, item_doc, result: Dict[str, Any], method: str):
-		"""Handle synchronization errors"""
-		error_message = result.get('error', 'Unknown error')
-		error_data = result.get('error_data', {})
-		
-		detailed_error = f"Failed to sync product {item_doc.name} to Wix: {error_message}"
-		if error_data:
-			detailed_error += f" | Error details: {json.dumps(error_data)}"
-		
-		frappe.log_error(detailed_error, "Wix Product Sync Error")
-		self._log_integration_event(item_doc.name, 'Error', error_message)
-		
-		# Update sync statistics in settings
-		self._update_sync_statistics(success=False)
-		
-		# Update mapping status if exists
-		try:
-			mapping = self._get_existing_mapping(item_doc.name)
-			if mapping:
-				mapping.sync_status = 'Error'
-				mapping.sync_error = error_message
-				mapping.save(ignore_permissions=True)
-				frappe.db.commit()
-		except Exception as e:
-			frappe.log_error(f"Error updating mapping status: {str(e)}", "Wix Integration Error")
-	
-	def _log_integration_event(self, item_code: str, status: str, message: str):
-		"""Log integration event for tracking and debugging"""
-		try:
-			log = frappe.get_doc({
-				'doctype': 'Wix Integration Log',
-				'reference_doctype': 'Item',
-				'reference_name': item_code,
-				'operation_type': 'Product Sync',
-				'status': status,
-				'message': message,
-				'timestamp': datetime.now(),
-				'user': get_fullname()
-			})
-			log.insert(ignore_permissions=True)
-			frappe.db.commit()
-		except Exception as e:
-			# Don't fail the main process if logging fails
-			frappe.log_error(f"Error logging integration event: {str(e)}", "Wix Integration Error")
-	
-	def _update_sync_statistics(self, success: bool = True):
-		"""Update synchronization statistics in Wix Settings"""
-		try:
-			if not self.settings:
-				return
-			
-			settings_doc = frappe.get_single("Wix Settings")
-			settings_doc.last_sync = datetime.now()
-			
-			if success:
-				settings_doc.total_synced_items = (settings_doc.total_synced_items or 0) + 1
-			else:
-				settings_doc.failed_syncs = (settings_doc.failed_syncs or 0) + 1
-			
-			settings_doc.save(ignore_permissions=True)
-			frappe.db.commit()
-		except Exception as e:
-			frappe.log_error(f"Error updating sync statistics: {str(e)}", "Wix Integration Error")
-
-# API Functions for Frappe hooks
-def sync_product_to_wix(doc, method=None):
-	"""Hook function for Item document events"""
-	try:
-		sync_service = WixProductSyncService()
-		sync_service.sync_product_to_wix(doc, method)
-	except Exception as e:
-		frappe.log_error(f"Error in sync_product_to_wix hook: {str(e)}", "Wix Integration Error")
-
-def delete_product_from_wix(doc, method=None):
-	"""Hook function for Item deletion - placeholder for future implementation"""
-	# For POC, we'll just log the deletion
-	# In production, implement actual Wix product deletion
-	try:
-		mapping = frappe.get_doc("Wix Item Mapping", {"erpnext_item_code": doc.name})
-		mapping.sync_status = 'Deleted in ERPNext'
-		mapping.save(ignore_permissions=True)
 		frappe.db.commit()
 		
-		frappe.log_error(
-			f"Item {doc.name} deleted from ERPNext. Manual cleanup required in Wix.",
-			"Wix Integration - Item Deleted"
-		)
-	except frappe.DoesNotExistError:
-		pass  # No mapping exists
 	except Exception as e:
-		frappe.log_error(f"Error handling item deletion: {str(e)}", "Wix Integration Error")
+		frappe.log_error(f"Error updating item {item_doc.name} with Wix data: {str(e)}", "Wix Item Update Error")
+
+def update_item_sync_status(item_name, status, error_message=None):
+	"""Update item sync status"""
+	try:
+		update_data = {
+			"wix_sync_status": status,
+			"wix_last_sync": datetime.now()
+		}
+		
+		frappe.db.set_value("Item", item_name, update_data)
+		
+		# Update mapping status
+		mapping_name = frappe.db.get_value(
+			"Wix Item Mapping",
+			{"erpnext_item": item_name}
+		)
+		
+		if mapping_name:
+			mapping_data = {
+				"sync_status": status,
+				"last_sync": datetime.now()
+			}
+			
+			if error_message:
+				mapping_data["error_message"] = error_message[:500]  # Limit error message length
+			
+			frappe.db.set_value("Wix Item Mapping", mapping_name, mapping_data)
+		
+		frappe.db.commit()
+		
+	except Exception as e:
+		frappe.log_error(f"Error updating sync status for {item_name}: {str(e)}", "Wix Status Update Error")
+
+def update_sync_statistics(settings, success):
+	"""Update sync statistics in settings"""
+	try:
+		if success:
+			settings.total_synced_items = (settings.total_synced_items or 0) + 1
+		else:
+			settings.failed_syncs = (settings.failed_syncs or 0) + 1
+		
+		settings.last_sync = datetime.now()
+		settings.save(ignore_permissions=True)
+		frappe.db.commit()
+		
+	except Exception as e:
+		frappe.log_error(f"Error updating sync statistics: {str(e)}", "Wix Stats Update Error")
+
+def create_integration_log(operation_type, reference_doctype, reference_name, status, message, wix_response=None):
+	"""Create integration log entry"""
+	try:
+		log_doc = frappe.get_doc({
+			'doctype': 'Wix Integration Log',
+			'operation_type': operation_type,
+			'reference_doctype': reference_doctype,
+			'reference_name': reference_name,
+			'status': status,
+			'message': message[:1000],  # Limit message length
+			'timestamp': datetime.now(),
+			'wix_response': json.dumps(wix_response, default=str)[:5000] if wix_response else None
+		})
+		
+		log_doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		
+	except Exception as e:
+		frappe.log_error(f"Error creating integration log: {str(e)}", "Wix Log Creation Error")
+
+# Webhook handlers and bulk operations
+
+@frappe.whitelist()
+def bulk_sync_items(filters=None):
+	"""Bulk sync items to Wix"""
+	if not frappe.db.get_single_value('Wix Settings', 'enabled'):
+		frappe.throw(_("Wix integration is not enabled"))
+	
+	# Get items based on filters
+	item_filters = filters or {}
+	item_filters.update({
+		'disabled': 0,
+		'is_stock_item': 1
+	})
+	
+	items = frappe.get_all(
+		"Item",
+		filters=item_filters,
+		fields=["name", "item_name", "item_code"],
+		limit=100  # Process in batches
+	)
+	
+	if not items:
+		return {"status": "warning", "message": "No items found to sync"}
+	
+	results = {
+		'total': len(items),
+		'success': 0,
+		'failed': 0,
+		'errors': []
+	}
+	
+	for item in items:
+		try:
+			item_doc = frappe.get_doc("Item", item.name)
+			result = sync_product_to_wix(item_doc, "bulk")
+			
+			if result.get('success'):
+				results['success'] += 1
+			else:
+				results['failed'] += 1
+				results['errors'].append({
+					'item': item.name,
+					'error': result.get('error', 'Unknown error')
+				})
+				
+		except Exception as e:
+			results['failed'] += 1
+			results['errors'].append({
+				'item': item.name,
+				'error': str(e)
+			})
+			frappe.log_error(f"Bulk sync error for {item.name}: {str(e)}", "Wix Bulk Sync Error")
+	
+	return {
+		'status': 'completed',
+		'message': f"Bulk sync completed: {results['success']} successful, {results['failed']} failed",
+		'results': results
+	}
+
+# Item hooks integration
+
+def on_item_update(doc, method=None):
+	"""Hook: Called when Item is updated"""
+	try:
+		# Check if Wix integration is enabled and auto-sync is on
+		settings = frappe.get_single('Wix Settings')
+		if not (settings.enabled and settings.auto_sync_items):
+			return
+		
+		# Only sync if item is stock item and not disabled
+		if doc.disabled or not doc.is_stock_item:
+			return
+		
+		# Check if this is a significant update that should trigger sync
+		if should_sync_item_update(doc):
+			# Sync in background to avoid blocking user operations
+			frappe.enqueue(
+				sync_product_to_wix,
+				queue='short',
+				timeout=120,
+				item_doc=doc,
+				trigger_type="auto"
+			)
+			
+	except Exception as e:
+		# Log error but don't fail the item save operation
+		frappe.log_error(f"Error in item update hook: {str(e)}", "Wix Item Hook Error")
+
+def should_sync_item_update(doc):
+	"""Check if item update should trigger sync"""
+	# Define fields that should trigger sync when changed
+	sync_fields = [
+		'item_name', 'description', 'image', 'standard_rate',
+		'item_group', 'disabled', 'is_stock_item'
+	]
+	
+	if doc.is_new():
+		return True
+	
+	# Check if any sync-relevant fields changed
+	for field in sync_fields:
+		if doc.has_value_changed(field):
+			return True
+	
+	return False
