@@ -1,142 +1,154 @@
-# Installation Guide for Wix-ERPNext Integration
+# ✅ FIXED: Installation Guide for Wix-ERPNext Integration
 
-## Quick Installation for POC
+## 🔧 Folder Structure Issue - RESOLVED
 
-Since you already have a basic Wix Product ID field on your Item doctype, you can test the basic integration functionality right away.
+The Frappe app structure has been corrected. The `hooks.py` file is now properly located in the `wix_integration/wix_integration/` directory as required by Frappe framework.
 
-### Step 1: Download and Install the App
+### Correct Folder Structure:
+```
+wix_integration/
+├── wix_integration/                    # Main app module
+│   ├── __init__.py                     # App initialization
+│   ├── hooks.py                        # ✅ FIXED: Moved to correct location
+│   ├── doctype/                        # Custom DocTypes
+│   │   ├── wix_settings/              # Configuration DocType
+│   │   └── wix_sync_log/              # Logging DocType
+│   ├── api/                           # API modules  
+│   │   ├── __init__.py                # ✅ ADDED
+│   │   ├── product_sync.py            # ✅ MOVED to correct location
+│   │   ├── order_sync.py              
+│   │   └── webhooks.py                
+│   └── tasks/                         # Scheduled tasks
+│       ├── __init__.py                # ✅ ADDED
+│       ├── sync_orders.py             # ✅ MOVED to correct location
+│       └── sync_inventory.py          # ✅ MOVED to correct location
+├── setup.py                          # Package setup
+├── requirements.txt                   # Dependencies
+├── README.md                          # Documentation
+└── INSTALLATION.md                    # This guide
+```
 
+## ⚡ Quick Installation (Updated)
+
+### Step 1: Install the Application
 ```bash
-# Navigate to your frappe bench directory
 cd ~/frappe-bench
 
-# Get the app from GitHub
+# Get the app from GitHub (updated with fixes)
 bench get-app https://github.com/macrobian88/wix_erpnext_integration.git
 
-# Install on your site (replace 'your-site-name' with your actual site name)
+# Install on your site
 bench --site your-site-name install-app wix_integration
 
 # Restart the bench
 bench restart
 ```
 
-### Step 2: Configure Wix Settings
+### Step 2: Verify Installation
+After installation, you should see:
+- **Wix Settings** in your ERPNext (search for it)
+- **Wix Sync Log** doctype available
+- Custom fields added to Item, Sales Order, and Customer
 
-1. **Get Your Wix API Credentials:**
-   - Go to your Wix Dashboard
-   - Navigate to Settings > Business & Site Info > API Keys
-   - Create a new API key with permissions for:
-     - Stores: Read and Write
-     - Products: Read and Write
-     - Orders: Read (if you want order sync later)
+### Step 3: Configure Wix Integration
 
-2. **Configure in ERPNext:**
-   - Go to "Wix Settings" in ERPNext (you'll find it in the search)
-   - Enable Wix Integration
-   - Enter your:
-     - Site ID (from your Wix site URL)
-     - API Key (from step 1)
-   - Set default values:
-     - Default Company
-     - Default Warehouse  
-     - Default Price List
-   - Check "Auto Sync Products"
-   - Click "Test Connection" to verify
+1. **Choose Your Wix Site** (from your available sites):
+   - `kokofresh` (ID: a57521a4-3ecd-40b8-852c-462f2af558d2) ✅ Recommended for POC
+   - `Dev Sitex1077548723` (ID: 63a7b738-6d1c-447a-849a-fab973366a06)  
+   - `The Byte Catalyst | Impact Mentor` (ID: bc24ec89-d58d-4b00-9c00-997dc4bb2025)
 
-### Step 3: Test the POC - Product Sync
+2. **Get Wix API Credentials**:
+   - Go to Wix Dashboard → Settings → Business & Site Info → API Keys
+   - Create API key with permissions: Stores (Read/Write), Products (Read/Write)
 
-1. **Create a Test Product:**
-   - Go to Stock > Item
-   - Create a new item with:
-     - Item Name: "Test Product for Wix"
-     - Item Code: "TEST-WIX-001"
-     - Item Group: Select any existing group
-     - Default Unit of Measure: "Nos"
-     - Standard Selling Rate: 25.00
-     - Check "Maintain Stock" if it's a physical product
-     - Make sure "Sync to Wix" is checked (should be default)
+3. **Configure in ERPNext**:
+   - Go to **"Wix Settings"** 
+   - Enable Wix Integration ✅
+   - Enter Site ID: `a57521a4-3ecd-40b8-852c-462f2af558d2` (for kokofresh)
+   - Enter your API Key
+   - Set defaults (Company, Warehouse, Price List)
+   - Click **"Test Connection"** to verify
 
-2. **Save the Item:**
-   - When you save, it will automatically trigger the sync to Wix
-   - Check the "Wix Sync Log" doctype to see the sync status
-   - The "Wix Product ID" field should get populated automatically
+### Step 4: Test the POC
 
-3. **Verify in Wix:**
-   - Go to your Wix Dashboard > Store > Products
-   - You should see your new product listed
-   - It will have the same name, price, and details as in ERPNext
+1. **Create Test Product**:
+   ```
+   Item Code: TEST-WIX-001
+   Item Name: Wix Integration Test Product
+   Item Group: [Select existing]
+   Standard Selling Rate: 25.00
+   Maintain Stock: ✅ (if physical product)
+   Sync to Wix: ✅ (should be default)
+   ```
 
-### Step 4: Monitor and Test
+2. **Save & Sync**:
+   - Save the Item → Automatic sync to Wix!
+   - Check **"Wix Sync Log"** for status
+   - Verify in Wix Dashboard → Store → Products
 
-1. **Check Sync Logs:**
-   - Go to "Wix Sync Log" in ERPNext
-   - You should see entries showing successful product sync
+3. **Manual Sync Options**:
+   - Item form: "Sync to Wix" button
+   - Wix Settings: "Sync All Products" button
 
-2. **Test Manual Sync:**
-   - In the Item form, you'll see a "Sync to Wix" button
-   - Use this to manually sync any product
+## 🎯 What's Fixed
 
-3. **Test Bulk Sync:**
-   - Go to Wix Settings
-   - Click "Sync All Products" to bulk sync all enabled products
+✅ **Proper Frappe Structure**: `hooks.py` in correct location  
+✅ **Module Organization**: API and tasks in proper directories  
+✅ **Import Paths**: All module imports corrected  
+✅ **Missing __init__.py**: Added for proper Python modules  
 
-## Advanced Configuration (Optional)
+## 🔧 Troubleshooting
 
-### Enable Webhooks for Real-time Updates
-1. In Wix Dashboard: Settings > Developer Tools > Webhooks
-2. Add webhook URL: `https://your-erpnext-site.com/api/wix-webhook`
-3. Subscribe to "Order Placed" and "Product Updated" events
+### Installation Issues:
+1. **"Not a valid Frappe App" Error**: 
+   - ✅ **FIXED**: `hooks.py` now in correct location
+   - Update your app: `bench update wix_integration`
 
-### Enable Order Sync
-1. In Wix Settings, check "Auto Sync Orders"
-2. Set up default customer group and territory
-3. Orders from Wix will automatically create Sales Orders in ERPNext
+2. **Import Errors**:
+   - ✅ **FIXED**: All module paths corrected
+   - Restart bench: `bench restart`
 
-### Enable Inventory Sync
-1. Check "Auto Sync Inventory" in Wix Settings
-2. Set sync frequency to "Daily" or "Hourly"
-3. Stock levels will automatically sync to Wix
+3. **Module Not Found**:
+   - ✅ **FIXED**: Added missing `__init__.py` files
+   - Clear cache: `bench --site your-site clear-cache`
 
-## Troubleshooting
+## 📊 Testing Your Setup
 
-### Common Issues:
+Run this in your ERPNext console to test:
+```python
+# Test if app is properly installed
+import wix_integration
+print("✅ App imported successfully")
 
-1. **"Connection Failed"**
-   - Double-check your API key and Site ID
-   - Make sure the API key has the right permissions
-   - Test the connection in Wix Settings
+# Test if settings exist
+try:
+    settings = frappe.get_single("Wix Settings")
+    print("✅ Wix Settings accessible")
+except:
+    print("❌ Wix Settings not found - check installation")
 
-2. **"Product Not Syncing"**
-   - Check if "Sync to Wix" is enabled on the item
-   - Check if the item is not disabled
-   - Look at the Sync Logs for error messages
-
-3. **"Permission Denied"**
-   - Make sure your Wix API key has "Stores: Read and Write" permissions
-   - Check that you're using the correct Site ID
-
-### Debug Mode:
-If you need more detailed logs, enable debug mode in your site config:
-```bash
-bench --site your-site-name set-config developer_mode 1
+# Test if custom field exists
+if frappe.db.exists("Custom Field", {"dt": "Item", "fieldname": "wix_product_id"}):
+    print("✅ Custom field exists")
+else:
+    print("❌ Custom field missing")
 ```
 
-## What This POC Demonstrates
+## 🎉 Success Indicators
 
-✅ **Automatic Product Sync**: Items created in ERPNext automatically appear in Wix
-✅ **Real-time Integration**: Uses Frappe document events for immediate sync
-✅ **Error Handling**: Comprehensive logging and error management
-✅ **Manual Override**: Ability to manually sync specific products
-✅ **Connection Validation**: Test API credentials before going live
-✅ **Production-Ready**: Includes proper validation, logging, and error handling
+After successful installation:
+- ✅ No installation errors
+- ✅ Wix Settings page loads
+- ✅ Test connection works
+- ✅ Product sync creates items in Wix
+- ✅ Sync logs show successful operations
 
-## Next Steps for Full Implementation
+## 📞 Support
 
-1. **Order Sync**: Complete the order import functionality
-2. **Inventory Sync**: Real-time stock level synchronization  
-3. **Customer Sync**: Import customer data from Wix orders
-4. **Webhook Integration**: Real-time updates via Wix webhooks
-5. **Field Mapping**: Custom field mapping between systems
-6. **Variant Support**: Handle product variants and options
+If you encounter any issues:
+1. Check the Wix Sync Log for detailed error messages
+2. Review ERPNext Error Log for system errors
+3. Verify API credentials and permissions in Wix
+4. Ensure proper bench restart after installation
 
-This POC provides a solid foundation for a complete bidirectional sync solution!
+The structure is now correct and follows Frappe framework standards!
