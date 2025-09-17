@@ -21,10 +21,6 @@ class WixSettings(Document):
 		self.validate_required_credentials()
 		self.validate_configuration_consistency()
 		self.generate_webhook_url()
-		
-		# Test connection if enabled and credentials are provided
-		if self.enabled and self.test_connection_on_save:
-			self.test_wix_connection()
 	
 	def on_update(self):
 		"""Handle post-save operations"""
