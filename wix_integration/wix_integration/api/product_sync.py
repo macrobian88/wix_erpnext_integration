@@ -2,7 +2,7 @@
 """Product Sync API - Handles ERPNext to Wix product synchronization
 
 This module provides production-grade bidirectional sync between ERPNext Items and Wix Products
-using the Wix Stores v3 API with proper error handling, validation, and logging.
+using the Wix Stores v1 Catalog API with proper error handling, validation, and logging.
 """
 
 import frappe
@@ -33,7 +33,7 @@ def sync_product_to_wix(item_doc, trigger_type="auto"):
 		return {'success': False, 'message': 'Auto sync is disabled'}
 	
 	try:
-		# Prepare Wix product data according to v3 API specification
+		# Prepare Wix product data according to v1 API specification
 		product_data = build_wix_product_data(item_doc, settings)
 		
 		# Initialize Wix connector
@@ -121,7 +121,7 @@ def sync_product_to_wix(item_doc, trigger_type="auto"):
 
 def build_wix_product_data(item_doc, settings):
 	"""
-	Build Wix product data structure according to Stores v3 API
+	Build Wix product data structure according to Stores v1 Catalog API
 	
 	Args:
 		item_doc: ERPNext Item document
@@ -134,81 +134,37 @@ def build_wix_product_data(item_doc, settings):
 	# Get item price from Item Price doctype
 	item_price = get_item_price(item_doc.name)
 	
-	# Build basic product structure
+	# Get item cost (using standard rate or weighted average)
+	item_cost = get_item_cost(item_doc.name)
+	
+	# Build basic product structure for Catalog V1
 	product_data = {
 		"name": item_doc.item_name or item_doc.name,
-		"productType": "PHYSICAL",  # Default to physical product
+		"productType": "physical",  # Default to physical product
 		"visible": True,
-		"visibleInPos": True
+		"priceData": {
+			"price": item_price
+		},
+		"costAndProfitData": {
+			"itemCost": item_cost
+		}
 	}
 	
 	# Add description if enabled
 	if settings.sync_item_description and item_doc.description:
-		product_data["plainDescription"] = item_doc.description
+		product_data["description"] = item_doc.description
 	
-	# Add physical properties (required for PHYSICAL products)
-	product_data["physicalProperties"] = {}
-	
-	# Add variant info (required)
-	variant_data = {
-		"price": {
-			"actualPrice": {
-				"amount": str(item_price or "0.00")
-			}
-		},
-		"physicalProperties": {}
-	}
-	
-	# Add SKU if available
+	# Add SKU
 	if item_doc.item_code:
-		variant_data["sku"] = item_doc.item_code
+		product_data["sku"] = item_doc.item_code
 	
 	# Add weight if available
 	if item_doc.weight_per_unit:
-		variant_data["physicalProperties"]["weight"] = flt(item_doc.weight_per_unit)
+		product_data["weight"] = flt(item_doc.weight_per_unit)
 	
-	product_data["variantsInfo"] = {
-		"variants": [variant_data]
-	}
-	
-	# Add media (images) if enabled and available
-	if settings.sync_item_images and item_doc.image:
-		media_items = []
-		
-		# Add main image
-		if item_doc.image:
-			site_url = get_site_url(frappe.local.site)
-			full_image_url = f"{site_url}{item_doc.image}" if not item_doc.image.startswith('http') else item_doc.image
-			
-			media_items.append({
-				"url": full_image_url
-			})
-		
-		# Add additional images from Website Item if available
-		try:
-			website_item = frappe.get_doc("Website Item", {"item_code": item_doc.name})
-			if website_item and website_item.website_image:
-				site_url = get_site_url(frappe.local.site)
-				full_image_url = f"{site_url}{website_item.website_image}" if not website_item.website_image.startswith('http') else website_item.website_image
-				
-				if full_image_url not in [item.get('url') for item in media_items]:
-					media_items.append({
-						"url": full_image_url
-					})
-		except:
-			pass  # Website Item might not exist
-		
-		if media_items:
-			product_data["media"] = {
-				"items": media_items
-			}
-	
-	# Add categories if enabled
-	if settings.sync_categories and item_doc.item_group:
-		# Get or create category in Wix
-		category_id = get_or_create_wix_category(item_doc.item_group)
-		if category_id:
-			product_data["mainCategoryId"] = category_id
+	# Add ribbon/brand information
+	if item_doc.item_group and item_doc.item_group != "All Item Groups":
+		product_data["brand"] = item_doc.item_group
 	
 	return product_data
 
@@ -237,6 +193,35 @@ def get_item_price(item_code):
 		frappe.log_error(f"Error getting item price for {item_code}: {str(e)}", "Wix Price Sync")
 		return 0.00
 
+def get_item_cost(item_code):
+	"""Get item cost from valuation rate or standard rate"""
+	try:
+		# Try to get cost from Stock Ledger Entry (latest valuation rate)
+		sle = frappe.get_all(
+			"Stock Ledger Entry",
+			filters={
+				"item_code": item_code,
+				"valuation_rate": [">", 0]
+			},
+			fields=["valuation_rate"],
+			order_by="posting_date desc, posting_time desc",
+			limit=1
+		)
+		
+		if sle:
+			return flt(sle[0].valuation_rate, 2)
+		
+		# Fallback to item's standard rate * 0.75 (estimated cost)
+		item = frappe.get_doc("Item", item_code)
+		if item.standard_rate:
+			return flt(item.standard_rate * 0.75, 2)
+		
+		return 0.00
+		
+	except Exception as e:
+		frappe.log_error(f"Error getting item cost for {item_code}: {str(e)}", "Wix Cost Sync")
+		return 0.00
+
 def get_or_create_wix_category(item_group):
 	"""Get existing or create new category in Wix"""
 	try:
@@ -250,11 +235,12 @@ def get_or_create_wix_category(item_group):
 		if mapping:
 			return mapping
 		
-		# Create new category in Wix
+		# Create new category in Wix (using collections in V1)
 		connector = WixConnector()
 		category_data = {
 			"name": item_group,
-			"visible": True
+			"visible": True,
+			"description": f"Category for {item_group} products"
 		}
 		
 		result = connector.create_category(category_data)
@@ -483,7 +469,7 @@ def should_sync_item_update(doc):
 	# Define fields that should trigger sync when changed
 	sync_fields = [
 		'item_name', 'description', 'image', 'standard_rate',
-		'item_group', 'disabled', 'is_stock_item'
+		'item_group', 'disabled', 'is_stock_item', 'weight_per_unit'
 	]
 	
 	if doc.is_new():
