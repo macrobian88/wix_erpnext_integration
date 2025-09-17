@@ -441,9 +441,31 @@ class WixIntegrationInstaller:
 			"7. Review the README.md file for detailed usage instructions"
 		]
 
-# Installation function
+# Installation functions that Frappe expects
+def after_install():
+	"""After installation hook function"""
+	try:
+		installer = WixIntegrationInstaller()
+		report = installer.install()
+		
+		if report.get('errors'):
+			frappe.log_error(
+				f"Installation completed with errors: {'; '.join(report['errors'])}", 
+				"Wix Integration Installation"
+			)
+		else:
+			frappe.msgprint(
+				_("Wix Integration installed successfully! Please go to Wix Settings to configure your API credentials."),
+				title=_("Installation Complete"),
+				indicator="green"
+			)
+			
+	except Exception as e:
+		frappe.log_error(f"Installation error: {str(e)}", "Wix Integration Installation")
+		frappe.throw(_("Installation failed: {0}").format(str(e)))
+
 def install_wix_integration():
-	"""Install Wix ERPNext Integration"""
+	"""Alternative installation function"""
 	installer = WixIntegrationInstaller()
 	return installer.install()
 
