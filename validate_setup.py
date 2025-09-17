@@ -1,174 +1,369 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Wix Integration Setup Validator
-This script helps validate your current ERPNext setup for Wix integration.
+Wix ERPNext Integration - Setup Validation Script
+
+This script validates the Frappe app structure and ensures all required files
+are present and correctly formatted for installation.
 """
 
-import frappe
-import requests
+import os
 import json
 import sys
+from pathlib import Path
 
-def check_erpnext_setup():
-    """Check if ERPNext is properly configured for Wix integration"""
-    print("🔍 Checking ERPNext Setup...")
+def validate_app_structure():
+    """Validate the basic Frappe app structure"""
+    print("🔍 Validating Frappe app structure...")
     
-    # Check if custom field exists
-    try:
-        custom_field = frappe.db.exists("Custom Field", {"dt": "Item", "fieldname": "wix_product_id"})
-        if custom_field:
-            print("✅ Wix Product ID field exists on Item doctype")
+    required_files = [
+        'wix_integration/__init__.py',
+        'wix_integration/hooks.py',
+        'wix_integration/modules.txt',
+        'wix_integration/patches.txt',
+        'setup.py',
+        'requirements.txt'
+    ]
+    
+    required_dirs = [
+        'wix_integration',
+        'wix_integration/wix_integration',
+        'wix_integration/public',
+        'wix_integration/templates',
+        'wix_integration/www'
+    ]
+    
+    # Check required files
+    missing_files = []
+    for file_path in required_files:
+        if not os.path.exists(file_path):
+            missing_files.append(file_path)
         else:
-            print("❌ Wix Product ID field not found on Item doctype")
-            return False
-    except Exception as e:
-        print(f"❌ Error checking custom fields: {str(e)}")
+            print(f"✅ {file_path}")
+    
+    # Check required directories
+    missing_dirs = []
+    for dir_path in required_dirs:
+        if not os.path.isdir(dir_path):
+            missing_dirs.append(dir_path)
+        else:
+            print(f"✅ {dir_path}/")
+    
+    if missing_files:
+        print(f"❌ Missing required files: {', '.join(missing_files)}")
         return False
     
-    # Check for required doctypes
-    required_doctypes = ["Item", "Sales Order", "Customer"]
-    for doctype in required_doctypes:
-        if frappe.db.exists("DocType", doctype):
-            print(f"✅ {doctype} doctype exists")
-        else:
-            print(f"❌ {doctype} doctype not found")
-            return False
+    if missing_dirs:
+        print(f"❌ Missing required directories: {', '.join(missing_dirs)}")
+        return False
     
-    print("✅ ERPNext setup looks good!")
+    print("✅ Basic app structure is valid")
     return True
 
-def check_wix_api_connection(site_id, api_key):
-    """Test Wix API connection"""
-    print("🔍 Testing Wix API Connection...")
-    
-    if not site_id or not api_key:
-        print("❌ Site ID and API Key are required")
-        return False
+def validate_hooks_file():
+    """Validate hooks.py file"""
+    print("\n🔍 Validating hooks.py...")
     
     try:
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json'
-        }
+        with open('wix_integration/hooks.py', 'r') as f:
+            content = f.read()
         
-        # Test with a simple API call
-        response = requests.get(
-            f'https://www.wixapis.com/v1/sites/{site_id}',
-            headers=headers,
-            timeout=10
-        )
+        required_vars = [
+            'app_name',
+            'app_title',
+            'app_publisher',
+            'app_description'
+        ]
         
-        if response.status_code == 200:
-            print("✅ Successfully connected to Wix API!")
-            site_info = response.json()
-            print(f"   Site Name: {site_info.get('displayName', 'Unknown')}")
-            return True
-        else:
-            print(f"❌ Wix API connection failed: {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Connection error: {str(e)}")
-        return False
+        for var in required_vars:
+            if var not in content:
+                print(f"❌ Missing required variable: {var}")
+                return False
+            else:
+                print(f"✅ Found {var}")
+        
+        # Check for doc_events
+        if 'doc_events' in content:
+            print("✅ Found doc_events configuration")
+        
+        # Check for scheduler_events
+        if 'scheduler_events' in content:
+            print("✅ Found scheduler_events configuration")
+        
+        print("✅ hooks.py is valid")
+        return True
+        
     except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+        print(f"❌ Error reading hooks.py: {str(e)}")
         return False
 
-def test_product_creation_flow():
-    """Test the product creation and sync flow"""
-    print("🔍 Testing Product Creation Flow...")
+def validate_doctype_files():
+    """Validate DocType files"""
+    print("\n🔍 Validating DocType files...")
+    
+    doctype_dir = Path('wix_integration/wix_integration/doctype')
+    if not doctype_dir.exists():
+        print("❌ DocType directory not found")
+        return False
+    
+    required_doctypes = [
+        'wix_settings',
+        'wix_integration_log',
+        'wix_item_mapping',
+        'wix_integration'
+    ]
+    
+    for doctype in required_doctypes:
+        doctype_path = doctype_dir / doctype
+        if not doctype_path.exists():
+            print(f"❌ Missing DocType: {doctype}")
+            return False
+        
+        # Check for required files
+        json_file = doctype_path / f"{doctype}.json"
+        py_file = doctype_path / f"{doctype}.py"
+        init_file = doctype_path / "__init__.py"
+        
+        if not json_file.exists():
+            print(f"❌ Missing JSON file for {doctype}")
+            return False
+        
+        if not py_file.exists():
+            print(f"❌ Missing Python file for {doctype}")
+            return False
+        
+        if not init_file.exists():
+            print(f"❌ Missing __init__.py for {doctype}")
+            return False
+        
+        # Validate JSON structure
+        try:
+            with open(json_file, 'r') as f:
+                doctype_data = json.load(f)
+            
+            if 'doctype' not in doctype_data or doctype_data['doctype'] != 'DocType':
+                print(f"❌ Invalid DocType JSON structure for {doctype}")
+                return False
+            
+            print(f"✅ {doctype}")
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON in {doctype}: {str(e)}")
+            return False
+    
+    print("✅ All DocType files are valid")
+    return True
+
+def validate_python_syntax():
+    """Validate Python syntax in all Python files"""
+    print("\n🔍 Validating Python syntax...")
+    
+    python_files = []
+    for root, dirs, files in os.walk('wix_integration'):
+        for file in files:
+            if file.endswith('.py'):
+                python_files.append(os.path.join(root, file))
+    
+    # Also check root Python files
+    root_files = ['setup.py', 'validate_setup.py']
+    for file in root_files:
+        if os.path.exists(file):
+            python_files.append(file)
+    
+    syntax_errors = []
+    for file_path in python_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                source = f.read()
+            
+            compile(source, file_path, 'exec')
+            print(f"✅ {file_path}")
+            
+        except SyntaxError as e:
+            syntax_errors.append(f"{file_path}: {str(e)}")
+        except Exception as e:
+            print(f"⚠️  Warning for {file_path}: {str(e)}")
+    
+    if syntax_errors:
+        print("❌ Python syntax errors found:")
+        for error in syntax_errors:
+            print(f"   {error}")
+        return False
+    
+    print("✅ All Python files have valid syntax")
+    return True
+
+def validate_json_files():
+    """Validate JSON files"""
+    print("\n🔍 Validating JSON files...")
+    
+    json_files = []
+    for root, dirs, files in os.walk('wix_integration'):
+        for file in files:
+            if file.endswith('.json'):
+                json_files.append(os.path.join(root, file))
+    
+    json_errors = []
+    for file_path in json_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                json.load(f)
+            print(f"✅ {file_path}")
+            
+        except json.JSONDecodeError as e:
+            json_errors.append(f"{file_path}: {str(e)}")
+    
+    if json_errors:
+        print("❌ JSON syntax errors found:")
+        for error in json_errors:
+            print(f"   {error}")
+        return False
+    
+    print("✅ All JSON files are valid")
+    return True
+
+def validate_modules_file():
+    """Validate modules.txt file"""
+    print("\n🔍 Validating modules.txt...")
+    
+    modules_file = 'wix_integration/modules.txt'
+    if not os.path.exists(modules_file):
+        print("❌ modules.txt not found")
+        return False
     
     try:
-        # Create a test item
-        test_item_code = "WIX-TEST-001"
+        with open(modules_file, 'r') as f:
+            modules = f.read().strip().split('\n')
         
-        # Check if test item already exists
-        if frappe.db.exists("Item", test_item_code):
-            print(f"ℹ️  Test item {test_item_code} already exists, skipping creation")
-            return True
+        if 'Wix Integration' not in modules:
+            print("❌ 'Wix Integration' module not found in modules.txt")
+            return False
         
-        # Get default values
-        default_item_group = frappe.db.get_single_value("Stock Settings", "item_group") or "Products"
-        default_uom = frappe.db.get_single_value("Stock Settings", "stock_uom") or "Nos"
+        print(f"✅ Found modules: {', '.join(modules)}")
+        return True
         
-        # Create test item data
-        test_item = {
-            "doctype": "Item",
-            "item_code": test_item_code,
-            "item_name": "Wix Integration Test Product",
-            "item_group": default_item_group,
-            "stock_uom": default_uom,
-            "is_stock_item": 1,
-            "standard_rate": 25.00,
-            "description": "Test product created for Wix integration validation"
-        }
+    except Exception as e:
+        print(f"❌ Error reading modules.txt: {str(e)}")
+        return False
+
+def validate_patches_file():
+    """Validate patches.txt file"""
+    print("\n🔍 Validating patches.txt...")
+    
+    patches_file = 'wix_integration/patches.txt'
+    if not os.path.exists(patches_file):
+        print("❌ patches.txt not found")
+        return False
+    
+    try:
+        with open(patches_file, 'r') as f:
+            content = f.read().strip()
         
-        print(f"📝 Creating test item with code: {test_item_code}")
-        print("✅ Product creation flow test completed")
-        print("   Note: Actual item creation will happen when you run the integration")
+        if not content:
+            print("⚠️  patches.txt is empty (this is okay)")
+        else:
+            patches = content.split('\n')
+            print(f"✅ Found patches: {', '.join(patches)}")
         
         return True
         
     except Exception as e:
-        print(f"❌ Error in product creation test: {str(e)}")
+        print(f"❌ Error reading patches.txt: {str(e)}")
         return False
 
-def validate_current_setup():
-    """Main validation function"""
-    print("🚀 Wix-ERPNext Integration Setup Validator")
-    print("=" * 50)
+def validate_setup_file():
+    """Validate setup.py file"""
+    print("\n🔍 Validating setup.py...")
     
-    # Check ERPNext setup
-    if not check_erpnext_setup():
-        print("❌ ERPNext setup validation failed")
+    if not os.path.exists('setup.py'):
+        print("❌ setup.py not found")
         return False
     
-    print()
-    
-    # Get Wix credentials from user input
-    print("🔧 Wix API Configuration Test")
-    print("Please enter your Wix credentials to test the connection:")
-    
-    site_id = input("Enter your Wix Site ID: ").strip()
-    api_key = input("Enter your Wix API Key: ").strip()
-    
-    if site_id and api_key:
-        print()
-        if not check_wix_api_connection(site_id, api_key):
-            print("❌ Wix API connection validation failed")
-            print("   Please check your credentials and try again")
-            return False
-    else:
-        print("ℹ️  Skipping Wix API test (no credentials provided)")
-    
-    print()
-    
-    # Test product flow
-    if not test_product_creation_flow():
-        print("❌ Product creation flow validation failed")
+    try:
+        with open('setup.py', 'r') as f:
+            content = f.read()
+        
+        required_fields = ['name', 'version', 'description', 'packages']
+        for field in required_fields:
+            if field not in content:
+                print(f"❌ Missing {field} in setup.py")
+                return False
+        
+        print("✅ setup.py structure is valid")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error reading setup.py: {str(e)}")
         return False
+
+def check_file_permissions():
+    """Check file permissions"""
+    print("\n🔍 Checking file permissions...")
     
-    print()
-    print("🎉 Validation completed successfully!")
-    print("\n📋 Next Steps:")
-    print("1. Install the Wix Integration app using the installation guide")
-    print("2. Configure Wix Settings in ERPNext with your credentials")
-    print("3. Create a test product and verify it syncs to Wix")
-    print("4. Monitor the Wix Sync Log for any issues")
+    # Check if files are readable
+    important_files = [
+        'wix_integration/hooks.py',
+        'setup.py',
+        'requirements.txt'
+    ]
+    
+    for file_path in important_files:
+        if os.path.exists(file_path):
+            if os.access(file_path, os.R_OK):
+                print(f"✅ {file_path} is readable")
+            else:
+                print(f"❌ {file_path} is not readable")
+                return False
     
     return True
 
+def print_summary(results):
+    """Print validation summary"""
+    print("\n" + "="*60)
+    print("📋 VALIDATION SUMMARY")
+    print("="*60)
+    
+    total_checks = len(results)
+    passed_checks = sum(results.values())
+    
+    for check, passed in results.items():
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"{status} {check}")
+    
+    print("\n" + "-"*60)
+    print(f"Results: {passed_checks}/{total_checks} checks passed")
+    
+    if passed_checks == total_checks:
+        print("\n🎉 All validations passed! Your Frappe app is ready for installation.")
+        print("\n📦 Installation command:")
+        print("   bench get-app wix_integration /path/to/this/directory")
+        print("   bench --site [site-name] install-app wix_integration")
+        return True
+    else:
+        print(f"\n❌ {total_checks - passed_checks} validation(s) failed. Please fix the issues above.")
+        return False
+
+def main():
+    """Main validation function"""
+    print("🚀 Wix ERPNext Integration - Setup Validation")
+    print("="*60)
+    
+    # Run all validations
+    validation_results = {
+        "App Structure": validate_app_structure(),
+        "Hooks File": validate_hooks_file(),
+        "DocType Files": validate_doctype_files(),
+        "Python Syntax": validate_python_syntax(),
+        "JSON Files": validate_json_files(),
+        "Modules File": validate_modules_file(),
+        "Patches File": validate_patches_file(),
+        "Setup File": validate_setup_file(),
+        "File Permissions": check_file_permissions()
+    }
+    
+    # Print summary and exit
+    success = print_summary(validation_results)
+    sys.exit(0 if success else 1)
+
 if __name__ == "__main__":
-    try:
-        # Initialize Frappe (if running in Frappe context)
-        if 'frappe' not in sys.modules:
-            import frappe
-        
-        validate_current_setup()
-        
-    except ImportError:
-        print("❌ This script requires Frappe framework to be available")
-        print("   Please run this from your ERPNext environment")
-    except Exception as e:
-        print(f"❌ Unexpected error: {str(e)}")
+    main()
