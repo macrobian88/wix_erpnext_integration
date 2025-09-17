@@ -1,0 +1,229 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:item_code",
+ "creation": "2024-01-01 00:00:00.000000",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "wix_product_id",
+  "column_break_3",
+  "sync_enabled",
+  "last_sync",
+  "sync_status",
+  "section_break_7",
+  "wix_product_name",
+  "wix_product_slug",
+  "wix_category_id",
+  "column_break_11",
+  "sync_price",
+  "sync_inventory",
+  "sync_images",
+  "details_section",
+  "sync_errors",
+  "last_error_date",
+  "column_break_17",
+  "total_syncs",
+  "successful_syncs",
+  "failed_syncs"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "wix_product_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Wix Product ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Sync Enabled"
+  },
+  {
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Sync",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sync_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Sync Status",
+   "options": "Not Synced\nPending\nSynced\nError\nDisabled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break",
+   "label": "Wix Product Details"
+  },
+  {
+   "fieldname": "wix_product_name",
+   "fieldtype": "Data",
+   "label": "Wix Product Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "wix_product_slug",
+   "fieldtype": "Data",
+   "label": "Wix Product Slug",
+   "read_only": 1
+  },
+  {
+   "fieldname": "wix_category_id",
+   "fieldtype": "Data",
+   "label": "Wix Category ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_11",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_price",
+   "fieldtype": "Check",
+   "label": "Sync Price"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_inventory",
+   "fieldtype": "Check",
+   "label": "Sync Inventory"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_images",
+   "fieldtype": "Check",
+   "label": "Sync Images"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Sync Details"
+  },
+  {
+   "fieldname": "sync_errors",
+   "fieldtype": "Long Text",
+   "label": "Recent Sync Errors",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error_date",
+   "fieldtype": "Datetime",
+   "label": "Last Error Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_17",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_syncs",
+   "fieldtype": "Int",
+   "label": "Total Syncs",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "successful_syncs",
+   "fieldtype": "Int",
+   "label": "Successful Syncs",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_syncs",
+   "fieldtype": "Int",
+   "label": "Failed Syncs",
+   "read_only": 1
+  }
+ ],
+ "has_web_view": 0,
+ "hide_heading": 0,
+ "hide_toolbar": 0,
+ "idx": 0,
+ "image_view": 0,
+ "in_create": 0,
+ "is_submittable": 0,
+ "istable": 0,
+ "max_attachments": 0,
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Wix Integration",
+ "name": "Wix Item Mapping",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Wix Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Stock User",
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "read_only": 0,
+ "read_only_onload": 0,
+ "show_name_in_global_search": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "item_name",
+ "track_changes": 1,
+ "track_seen": 0,
+ "track_views": 0
+}
