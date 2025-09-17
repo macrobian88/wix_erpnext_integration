@@ -1,0 +1,1 @@
+# Wix Item Mapping DocType

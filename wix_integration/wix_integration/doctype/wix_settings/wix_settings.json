@@ -1,0 +1,264 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-01-01 00:00:00.000000",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "wix_configuration_section",
+  "site_id",
+  "api_key",
+  "account_id",
+  "column_break_4",
+  "enabled",
+  "test_mode",
+  "auto_sync_items",
+  "sync_section",
+  "sync_item_name",
+  "sync_item_description",
+  "sync_item_price",
+  "sync_item_images",
+  "column_break_12",
+  "sync_inventory",
+  "sync_categories",
+  "default_category",
+  "advanced_section",
+  "webhook_url",
+  "webhook_secret",
+  "column_break_18",
+  "retry_attempts",
+  "timeout_seconds",
+  "log_level",
+  "monitoring_section",
+  "last_sync",
+  "total_synced_items",
+  "column_break_24",
+  "failed_syncs",
+  "sync_errors"
+ ],
+ "fields": [
+  {
+   "fieldname": "wix_configuration_section",
+   "fieldtype": "Section Break",
+   "label": "Wix Configuration"
+  },
+  {
+   "fieldname": "site_id",
+   "fieldtype": "Data",
+   "label": "Wix Site ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "Wix API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "account_id",
+   "fieldtype": "Data",
+   "label": "Wix Account ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enable Wix Integration"
+  },
+  {
+   "default": "1",
+   "fieldname": "test_mode",
+   "fieldtype": "Check",
+   "label": "Test Mode"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_sync_items",
+   "fieldtype": "Check",
+   "label": "Auto Sync Items"
+  },
+  {
+   "fieldname": "sync_section",
+   "fieldtype": "Section Break",
+   "label": "Sync Configuration"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_item_name",
+   "fieldtype": "Check",
+   "label": "Sync Item Name"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_item_description",
+   "fieldtype": "Check",
+   "label": "Sync Item Description"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_item_price",
+   "fieldtype": "Check",
+   "label": "Sync Item Price"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_item_images",
+   "fieldtype": "Check",
+   "label": "Sync Item Images"
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_inventory",
+   "fieldtype": "Check",
+   "label": "Sync Inventory Levels"
+  },
+  {
+   "default": "1",
+   "fieldname": "sync_categories",
+   "fieldtype": "Check",
+   "label": "Sync Categories"
+  },
+  {
+   "fieldname": "default_category",
+   "fieldtype": "Data",
+   "label": "Default Wix Category"
+  },
+  {
+   "fieldname": "advanced_section",
+   "fieldtype": "Section Break",
+   "label": "Advanced Settings"
+  },
+  {
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret"
+  },
+  {
+   "fieldname": "column_break_18",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "3",
+   "fieldname": "retry_attempts",
+   "fieldtype": "Int",
+   "label": "Retry Attempts"
+  },
+  {
+   "default": "30",
+   "fieldname": "timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Timeout (Seconds)"
+  },
+  {
+   "default": "INFO",
+   "fieldname": "log_level",
+   "fieldtype": "Select",
+   "label": "Log Level",
+   "options": "DEBUG\nINFO\nWARN\nERROR"
+  },
+  {
+   "fieldname": "monitoring_section",
+   "fieldtype": "Section Break",
+   "label": "Monitoring"
+  },
+  {
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Sync",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_synced_items",
+   "fieldtype": "Int",
+   "label": "Total Synced Items",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_24",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_syncs",
+   "fieldtype": "Int",
+   "label": "Failed Syncs",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sync_errors",
+   "fieldtype": "Long Text",
+   "label": "Recent Sync Errors",
+   "read_only": 1
+  }
+ ],
+ "has_web_view": 0,
+ "hide_heading": 0,
+ "hide_toolbar": 0,
+ "idx": 0,
+ "image_view": 0,
+ "in_create": 0,
+ "is_submittable": 0,
+ "issingle": 1,
+ "istable": 0,
+ "max_attachments": 0,
+ "modified": "2024-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Wix Integration",
+ "name": "Wix Settings",
+ "naming_rule": "",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Wix Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 0,
+ "read_only": 0,
+ "read_only_onload": 0,
+ "show_name_in_global_search": 0,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "",
+ "track_changes": 1,
+ "track_seen": 0,
+ "track_views": 0
+}
