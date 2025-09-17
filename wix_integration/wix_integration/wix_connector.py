@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Wix API Connector - Handles all Wix API communication"""
+"""Wix API Connector - Handles all Wix API communication with proper v3 Stores API"""
 
 import frappe
 import requests
@@ -9,7 +9,7 @@ from frappe import _
 from frappe.utils import get_site_url
 
 class WixConnector:
-	"""Main class for handling Wix API connections"""
+	"""Main class for handling Wix API connections using proper Wix Stores v3 API"""
 	
 	def __init__(self):
 		self.settings = self.get_settings()
@@ -38,7 +38,7 @@ class WixConnector:
 		}
 	
 	def test_connection(self):
-		"""Test Wix API connection"""
+		"""Test Wix API connection using site details endpoint"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
@@ -46,9 +46,9 @@ class WixConnector:
 			return {'success': False, 'error': 'Missing required Wix credentials'}
 		
 		try:
-			# Test with a simple API call to get site info
+			# Test with site details endpoint
 			response = requests.get(
-				f"{self.base_url}/v1/sites/{self.settings.site_id}",
+				f"{self.base_url}/business-info/v1/site-properties",
 				headers=self.headers,
 				timeout=self.settings.timeout_seconds or 30
 			)
@@ -73,17 +73,22 @@ class WixConnector:
 			return {'success': False, 'error': str(e)}
 	
 	def create_product(self, product_data):
-		"""Create a product in Wix"""
+		"""Create a product in Wix using Stores v3 API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
 			url = f"{self.base_url}/stores/v3/products"
 			
+			# Prepare the request payload according to Wix API requirements
+			payload = {
+				'product': product_data
+			}
+			
 			response = requests.post(
 				url,
 				headers=self.headers,
-				data=json.dumps({'product': product_data}),
+				data=json.dumps(payload),
 				timeout=self.settings.timeout_seconds or 30
 			)
 			
@@ -96,7 +101,11 @@ class WixConnector:
 					'response': result
 				}
 			else:
-				error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text
+				try:
+					error_data = response.json()
+				except:
+					error_data = response.text
+				
 				return {
 					'success': False,
 					'error': f'Failed to create product: {response.status_code}',
@@ -113,17 +122,22 @@ class WixConnector:
 			return {'success': False, 'error': f'Unexpected error: {str(e)}'}
 	
 	def update_product(self, product_id, product_data):
-		"""Update a product in Wix"""
+		"""Update a product in Wix using Stores v3 API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
 			url = f"{self.base_url}/stores/v3/products/{product_id}"
 			
+			# Prepare the request payload
+			payload = {
+				'product': product_data
+			}
+			
 			response = requests.patch(
 				url,
 				headers=self.headers,
-				data=json.dumps({'product': product_data}),
+				data=json.dumps(payload),
 				timeout=self.settings.timeout_seconds or 30
 			)
 			
@@ -135,7 +149,11 @@ class WixConnector:
 					'response': result
 				}
 			else:
-				error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text
+				try:
+					error_data = response.json()
+				except:
+					error_data = response.text
+				
 				return {
 					'success': False,
 					'error': f'Failed to update product: {response.status_code}',
@@ -184,13 +202,13 @@ class WixConnector:
 			return {'success': False, 'error': f'Error getting product: {str(e)}'}
 	
 	def upload_media(self, file_url, file_name=None):
-		"""Upload media to Wix"""
+		"""Upload media to Wix Media Manager"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
 			# For now, return the original URL as Wix can handle external URLs
-			# In a production environment, you'd want to properly upload to Wix Media Manager
+			# In production, you'd want to upload to Wix Media Manager using the Media API
 			return {
 				'success': True,
 				'media_url': file_url,
@@ -202,17 +220,22 @@ class WixConnector:
 			return {'success': False, 'error': f'Error uploading media: {str(e)}'}
 	
 	def create_category(self, category_data):
-		"""Create a category in Wix"""
+		"""Create a category in Wix using Categories v3 API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
 			url = f"{self.base_url}/stores/v3/categories"
 			
+			# Prepare the request payload
+			payload = {
+				'category': category_data
+			}
+			
 			response = requests.post(
 				url,
 				headers=self.headers,
-				data=json.dumps({'category': category_data}),
+				data=json.dumps(payload),
 				timeout=self.settings.timeout_seconds or 30
 			)
 			
@@ -225,7 +248,11 @@ class WixConnector:
 					'response': result
 				}
 			else:
-				error_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text
+				try:
+					error_data = response.json()
+				except:
+					error_data = response.text
+				
 				return {
 					'success': False,
 					'error': f'Failed to create category: {response.status_code}',
