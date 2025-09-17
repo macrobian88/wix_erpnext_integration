@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Product Sync API - Handles ERPNext to Wix product synchronization
+"""Product Sync API - Handles ERPNext to Wix product synchronization (Updated for Catalog V3)
 
 This module provides production-grade bidirectional sync between ERPNext Items and Wix Products
-using the Wix Stores v1 Catalog API with proper error handling, validation, and logging.
+using the Wix Stores v3 Catalog API with proper error handling, validation, and logging.
 """
 
 import frappe
@@ -14,7 +14,7 @@ from wix_integration.wix_integration.wix_connector import WixConnector
 
 def sync_product_to_wix(item_doc, trigger_type="auto"):
 	"""
-	Sync an ERPNext Item to Wix as a Product
+	Sync an ERPNext Item to Wix as a Product using Catalog V3
 	
 	Args:
 		item_doc: ERPNext Item document
@@ -33,8 +33,8 @@ def sync_product_to_wix(item_doc, trigger_type="auto"):
 		return {'success': False, 'message': 'Auto sync is disabled'}
 	
 	try:
-		# Prepare Wix product data according to v1 API specification
-		product_data = build_wix_product_data(item_doc, settings)
+		# Prepare Wix product data according to v3 API specification
+		product_data = build_wix_product_data_v3(item_doc, settings)
 		
 		# Initialize Wix connector
 		connector = WixConnector()
@@ -119,16 +119,16 @@ def sync_product_to_wix(item_doc, trigger_type="auto"):
 			'error': error_message
 		}
 
-def build_wix_product_data(item_doc, settings):
+def build_wix_product_data_v3(item_doc, settings):
 	"""
-	Build Wix product data structure according to Stores v1 Catalog API
+	Build Wix product data structure according to Stores v3 Catalog API
 	
 	Args:
 		item_doc: ERPNext Item document
 		settings: Wix Settings document
 	
 	Returns:
-		dict: Wix product data structure
+		dict: Wix product data structure for V3 API
 	"""
 	
 	# Get item price from Item Price doctype
@@ -137,34 +137,79 @@ def build_wix_product_data(item_doc, settings):
 	# Get item cost (using standard rate or weighted average)
 	item_cost = get_item_cost(item_doc.name)
 	
-	# Build basic product structure for Catalog V1
+	# Build basic product structure for Catalog V3
 	product_data = {
 		"name": item_doc.item_name or item_doc.name,
-		"productType": "physical",  # Default to physical product
+		"productType": "PHYSICAL",  # Default to physical product
 		"visible": True,
-		"priceData": {
-			"price": item_price
-		},
-		"costAndProfitData": {
-			"itemCost": item_cost
-		}
+		"physicalProperties": {}  # Required for physical products
 	}
 	
 	# Add description if enabled
 	if settings.sync_item_description and item_doc.description:
-		product_data["description"] = item_doc.description
+		# Use plainDescription for simple text descriptions
+		product_data["plainDescription"] = item_doc.description
 	
-	# Add SKU
-	if item_doc.item_code:
-		product_data["sku"] = item_doc.item_code
+	# Add media if available
+	if item_doc.image:
+		product_data["media"] = {
+			"items": [
+				{
+					"url": get_site_url() + item_doc.image
+				}
+			]
+		}
+	
+	# Add brand information if available
+	if item_doc.brand:
+		product_data["brand"] = {
+			"name": item_doc.brand
+		}
+	elif item_doc.item_group and item_doc.item_group != "All Item Groups":
+		product_data["brand"] = {
+			"name": item_doc.item_group
+		}
+	
+	# V3 requires variantsInfo with at least one variant
+	variant_data = {
+		"price": {
+			"actualPrice": {
+				"amount": str(item_price)
+			}
+		},
+		"physicalProperties": {}
+	}
+	
+	# Add cost information if available
+	if item_cost > 0:
+		variant_data["revenueDetails"] = {
+			"cost": {
+				"amount": str(item_cost)
+			}
+		}
 	
 	# Add weight if available
 	if item_doc.weight_per_unit:
-		product_data["weight"] = flt(item_doc.weight_per_unit)
+		variant_data["physicalProperties"]["weight"] = flt(item_doc.weight_per_unit)
 	
-	# Add ribbon/brand information
-	if item_doc.item_group and item_doc.item_group != "All Item Groups":
-		product_data["brand"] = item_doc.item_group
+	# Add SKU if available
+	if item_doc.item_code:
+		variant_data["sku"] = item_doc.item_code
+	
+	# Add barcode if available
+	if hasattr(item_doc, 'barcode') and item_doc.barcode:
+		variant_data["barcode"] = item_doc.barcode
+	
+	# Required variantsInfo structure for V3
+	product_data["variantsInfo"] = {
+		"variants": [variant_data]
+	}
+	
+	# Add ribbon for featured items
+	if hasattr(item_doc, 'featured') and item_doc.featured:
+		product_data["ribbon"] = {
+			"name": "Featured"
+		}
 	
 	return product_data
 
@@ -235,7 +280,7 @@ def get_or_create_wix_category(item_group):
 		if mapping:
 			return mapping
 		
-		# Create new category in Wix (using collections in V1)
+		# Create new category in Wix (using collections in V3)
 		connector = WixConnector()
 		category_data = {
 			"name": item_group,
@@ -428,7 +473,7 @@ def bulk_sync_items(filters=None):
 				'error': str(e)
 			})
 			frappe.log_error(f"Bulk sync error for {item.name}: {str(e)}", "Wix Bulk Sync Error")
-	
+
 	return {
 		'status': 'completed',
 		'message': f"Bulk sync completed: {results['success']} successful, {results['failed']} failed",
