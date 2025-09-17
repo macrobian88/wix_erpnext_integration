@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Wix API Connector - Debug version to identify 403 issue"""
+"""Wix API Connector - Updated for Catalog V3 with proper error handling"""
 
 import frappe
 import requests
@@ -9,7 +9,7 @@ from frappe import _
 from frappe.utils import get_site_url
 
 class WixConnector:
-	"""Main class for handling Wix API connections using Wix Stores v1 Catalog API"""
+	"""Main class for handling Wix API connections using Wix Stores v3 Catalog API"""
 	
 	def __init__(self):
 		self.settings = self.get_settings()
@@ -21,7 +21,7 @@ class WixConnector:
 		if self.settings:
 			frappe.log_error(f"Site ID: {self.settings.site_id}, Account ID: {self.settings.account_id}", "Wix Debug")
 			frappe.log_error(f"API Key present: {bool(self.settings.api_key)}, Length: {len(self.settings.api_key) if self.settings.api_key else 0}", "Wix Debug")
-	
+
 	def get_settings(self):
 		"""Get Wix settings with caching"""
 		try:
@@ -32,7 +32,7 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Error getting Wix settings: {str(e)}", "Wix Connector Error")
 			return None
-	
+
 	def get_headers(self):
 		"""Get API request headers"""
 		if not self.settings or not self.settings.api_key:
@@ -55,7 +55,7 @@ class WixConnector:
 		frappe.log_error(f"Headers prepared: Authorization starts with 'Bearer {api_key[:10]}...', Site ID: {self.settings.site_id}", "Wix Debug")
 		
 		return headers
-	
+
 	def test_connection(self):
 		"""Test Wix API connection using site details endpoint"""
 		if not self.settings or not self.settings.enabled:
@@ -90,16 +90,16 @@ class WixConnector:
 			return {'success': False, 'error': 'Failed to connect to Wix API'}
 		except Exception as e:
 			return {'success': False, 'error': str(e)}
-	
+
 	def create_product(self, product_data):
-		"""Create a product in Wix using Stores v1 Catalog API"""
+		"""Create a product in Wix using Stores v3 Catalog API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v1/products"
+			url = f"{self.base_url}/stores/v3/products"
 			
-			# Prepare the request payload according to Wix Catalog V1 API requirements
+			# Prepare the request payload according to Wix Catalog V3 API requirements
 			payload = {
 				'product': product_data
 			}
@@ -152,14 +152,14 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Unexpected error creating product: {str(e)}", "Wix Connector")
 			return {'success': False, 'error': f'Unexpected error: {str(e)}'}
-	
+
 	def update_product(self, product_id, product_data):
-		"""Update a product in Wix using Stores v1 Catalog API"""
+		"""Update a product in Wix using Stores v3 Catalog API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v1/products/{product_id}"
+			url = f"{self.base_url}/stores/v3/products/{product_id}"
 			
 			# Prepare the request payload
 			payload = {
@@ -208,14 +208,14 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Unexpected error updating product: {str(e)}", "Wix Connector")
 			return {'success': False, 'error': f'Unexpected error: {str(e)}'}
-	
+
 	def get_product(self, product_id):
 		"""Get a product from Wix"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v1/products/{product_id}"
+			url = f"{self.base_url}/stores/v3/products/{product_id}"
 			
 			response = requests.get(
 				url,
@@ -240,7 +240,7 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Error getting product: {str(e)}", "Wix Connector")
 			return {'success': False, 'error': f'Error getting product: {str(e)}'}
-	
+
 	def upload_media(self, file_url, file_name=None):
 		"""Upload media to Wix Media Manager"""
 		if not self.settings or not self.settings.enabled:
@@ -258,16 +258,16 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Error uploading media: {str(e)}", "Wix Connector")
 			return {'success': False, 'error': f'Error uploading media: {str(e)}'}
-	
+
 	def create_category(self, category_data):
-		"""Create a category in Wix using Categories v1 API"""
+		"""Create a category in Wix using Collections v3 API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v1/collections"
+			url = f"{self.base_url}/stores/v3/collections"
 			
-			# Prepare the request payload for V1 collections (categories)
+			# Prepare the request payload for V3 collections (categories)
 			payload = {
 				'collection': {
 					'name': category_data.get('name'),
@@ -307,7 +307,7 @@ class WixConnector:
 		except Exception as e:
 			frappe.log_error(f"Error creating category: {str(e)}", "Wix Connector")
 			return {'success': False, 'error': f'Error creating category: {str(e)}'}
-	
+
 	def make_request(self, method, endpoint, data=None):
 		"""Generic method to make API requests"""
 		if not self.settings or not self.settings.enabled:
