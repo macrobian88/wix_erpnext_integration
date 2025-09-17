@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Wix API Connector - Handles all Wix API communication with proper v1 Catalog API"""
+"""Wix API Connector - Debug version to identify 403 issue"""
 
 import frappe
 import requests
@@ -15,27 +15,46 @@ class WixConnector:
 		self.settings = self.get_settings()
 		self.base_url = "https://www.wixapis.com"
 		self.headers = self.get_headers()
+		
+		# Debug: Log initialization details
+		frappe.log_error(f"WixConnector initialized. Settings loaded: {bool(self.settings)}", "Wix Debug")
+		if self.settings:
+			frappe.log_error(f"Site ID: {self.settings.site_id}, Account ID: {self.settings.account_id}", "Wix Debug")
+			frappe.log_error(f"API Key present: {bool(self.settings.api_key)}, Length: {len(self.settings.api_key) if self.settings.api_key else 0}", "Wix Debug")
 	
 	def get_settings(self):
 		"""Get Wix settings with caching"""
 		try:
-			from wix_integration.wix_integration.doctype.wix_settings.wix_settings import get_wix_settings
-			return get_wix_settings()
+			# Try direct access first
+			settings = frappe.get_single('Wix Settings')
+			frappe.log_error(f"Settings retrieved directly: enabled={settings.enabled}, site_id={settings.site_id}", "Wix Debug")
+			return settings
 		except Exception as e:
-			frappe.log_error(f"Error getting Wix settings: {str(e)}", "Wix Connector")
+			frappe.log_error(f"Error getting Wix settings: {str(e)}", "Wix Connector Error")
 			return None
 	
 	def get_headers(self):
 		"""Get API request headers"""
 		if not self.settings or not self.settings.api_key:
+			frappe.log_error("No settings or API key found for headers", "Wix Debug")
 			return {}
 		
-		return {
+		# Get the actual API key value (decrypt if needed)
+		api_key = self.settings.get_password('api_key')
+		if not api_key:
+			api_key = self.settings.api_key
+		
+		headers = {
 			'Content-Type': 'application/json',
-			'Authorization': f'Bearer {self.settings.api_key}',
+			'Authorization': f'Bearer {api_key}',
 			'wix-site-id': self.settings.site_id,
 			'wix-account-id': self.settings.account_id
 		}
+		
+		# Debug: Log headers (without full API key)
+		frappe.log_error(f"Headers prepared: Authorization starts with 'Bearer {api_key[:10]}...', Site ID: {self.settings.site_id}", "Wix Debug")
+		
+		return headers
 	
 	def test_connection(self):
 		"""Test Wix API connection using site details endpoint"""
@@ -85,12 +104,22 @@ class WixConnector:
 				'product': product_data
 			}
 			
+			# Debug: Log request details
+			frappe.log_error(f"Creating product at URL: {url}", "Wix Debug")
+			frappe.log_error(f"Payload: {json.dumps(payload, indent=2)}", "Wix Debug")
+			frappe.log_error(f"Headers: {json.dumps({k: v[:20] + '...' if k == 'Authorization' else v for k, v in self.headers.items()}, indent=2)}", "Wix Debug")
+			
 			response = requests.post(
 				url,
 				headers=self.headers,
 				data=json.dumps(payload),
 				timeout=self.settings.timeout_seconds or 30
 			)
+			
+			# Debug: Log response
+			frappe.log_error(f"Response status: {response.status_code}", "Wix Debug")
+			frappe.log_error(f"Response headers: {dict(response.headers)}", "Wix Debug")
+			frappe.log_error(f"Response text: {response.text[:500]}...", "Wix Debug")
 			
 			if response.status_code in [200, 201]:
 				result = response.json()
@@ -105,6 +134,9 @@ class WixConnector:
 					error_data = response.json()
 				except:
 					error_data = response.text
+				
+				# Log detailed error for debugging
+				frappe.log_error(f"Product creation failed - Status: {response.status_code}, Error: {error_data}", "Wix Debug")
 				
 				return {
 					'success': False,
@@ -134,12 +166,20 @@ class WixConnector:
 				'product': product_data
 			}
 			
+			# Debug: Log request details
+			frappe.log_error(f"Updating product {product_id} at URL: {url}", "Wix Debug")
+			frappe.log_error(f"Update payload: {json.dumps(payload, indent=2)}", "Wix Debug")
+			
 			response = requests.patch(
 				url,
 				headers=self.headers,
 				data=json.dumps(payload),
 				timeout=self.settings.timeout_seconds or 30
 			)
+			
+			# Debug: Log response
+			frappe.log_error(f"Update response status: {response.status_code}", "Wix Debug")
+			frappe.log_error(f"Update response text: {response.text[:500]}...", "Wix Debug")
 			
 			if response.status_code == 200:
 				result = response.json()
