@@ -150,12 +150,17 @@ def build_wix_product_data_v3(item_doc, settings):
 		# Use plainDescription for simple text descriptions
 		product_data["plainDescription"] = item_doc.description
 	
-	# Add media if available
-	if item_doc.image:
+	# Add media if available and enabled
+	if settings.sync_item_images and item_doc.image:
+		# Build full URL for the image
+		image_url = item_doc.image
+		if not image_url.startswith('http'):
+			image_url = get_site_url() + item_doc.image
+			
 		product_data["media"] = {
 			"items": [
 				{
-					"url": get_site_url() + item_doc.image
+					"url": image_url
 				}
 			]
 		}
@@ -174,7 +179,7 @@ def build_wix_product_data_v3(item_doc, settings):
 	variant_data = {
 		"price": {
 			"actualPrice": {
-				"amount": str(item_price)
+				"amount": str(flt(item_price, 2))
 			}
 		},
 		"physicalProperties": {}
@@ -184,7 +189,7 @@ def build_wix_product_data_v3(item_doc, settings):
 	if item_cost > 0:
 		variant_data["revenueDetails"] = {
 			"cost": {
-				"amount": str(item_cost)
+				"amount": str(flt(item_cost, 2))
 			}
 		}
 	
@@ -419,6 +424,55 @@ def create_integration_log(operation_type, reference_doctype, reference_name, st
 		
 	except Exception as e:
 		frappe.log_error(f"Error creating integration log: {str(e)}", "Wix Log Creation Error")
+
+def delete_product_from_wix(item_doc, method=None):
+	"""Delete product from Wix when item is deleted from ERPNext"""
+	try:
+		settings = frappe.get_single('Wix Settings')
+		if not settings.enabled:
+			return
+		
+		# Get the Wix product ID
+		wix_product_id = item_doc.get('wix_product_id')
+		if not wix_product_id:
+			return
+		
+		# Initialize connector and delete product
+		connector = WixConnector()
+		result = connector.make_request('DELETE', f'stores/v3/products/{wix_product_id}')
+		
+		if result.get('success'):
+			# Log success
+			create_integration_log(
+				operation_type="Product Deletion",
+				reference_doctype="Item",
+				reference_name=item_doc.name,
+				status="Success",
+				message="Successfully deleted product from Wix",
+				wix_response=result
+			)
+			
+			# Remove from mapping
+			mapping_name = frappe.db.get_value(
+				"Wix Item Mapping",
+				{"erpnext_item": item_doc.name}
+			)
+			if mapping_name:
+				frappe.delete_doc("Wix Item Mapping", mapping_name, ignore_permissions=True)
+		
+		else:
+			# Log error
+			create_integration_log(
+				operation_type="Product Deletion",
+				reference_doctype="Item",
+				reference_name=item_doc.name,
+				status="Error",
+				message=f"Failed to delete product from Wix: {result.get('error')}",
+				wix_response=result
+			)
+		
+	except Exception as e:
+		frappe.log_error(f"Error deleting product from Wix: {str(e)}", "Wix Product Deletion Error")
 
 # Webhook handlers and bulk operations
 
