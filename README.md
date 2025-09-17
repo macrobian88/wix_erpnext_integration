@@ -1,405 +1,287 @@
 # Wix ERPNext Integration
 
-## Overview
+A production-grade Frappe application that provides bidirectional synchronization between ERPNext and Wix e-commerce platform. This integration allows you to sync products, orders, categories, and inventory between ERPNext (your backend operations system) and Wix (your online store).
 
-A production-grade Frappe application that enables seamless bidirectional synchronization between Wix e-commerce websites and ERPNext systems. This integration allows businesses to manage their products, orders, and inventory efficiently across both platforms.
+## 🚀 Features
 
-## Features
+### Current Version (v1.0.0 - POC)
+- ✅ **Product Sync (ERPNext → Wix)**: Automatically sync Items from ERPNext to Wix as Products
+- ✅ **Wix Stores v3 API Integration**: Uses the latest Wix Stores v3 API
+- ✅ **Production-grade Error Handling**: Comprehensive error handling and logging
+- ✅ **Webhook Support**: Receive real-time updates from Wix
+- ✅ **Settings Management**: Easy configuration through Wix Settings doctype
+- ✅ **Sync Monitoring**: Track all sync operations with detailed logs
+- ✅ **Custom Fields**: Automatic creation of required custom fields
+- ✅ **Category Mapping**: Map ERPNext Item Groups to Wix Categories
+- ✅ **Bulk Operations**: Bulk sync multiple items at once
 
-### 🚀 **Proof of Concept (POC) - Product Synchronization**
-- **Automatic Product Sync**: Items created or updated in ERPNext are automatically synchronized to your Wix store
-- **Real-time Updates**: Changes to product names, descriptions, prices, and images are reflected immediately
-- **Comprehensive Validation**: Built-in validation ensures data integrity before syncing
-- **Error Handling**: Robust error handling with detailed logging and retry mechanisms
+### Planned Features (Future Versions)
+- 🔄 **Bidirectional Product Sync**: Sync products from Wix back to ERPNext
+- 📦 **Order Sync (Wix → ERPNext)**: Create Sales Orders from Wix orders
+- 📋 **Inventory Sync**: Real-time inventory synchronization
+- 💰 **Price Sync**: Keep prices synchronized between platforms
+- 🏷️ **Advanced Category Management**: Hierarchical category mapping
+- 📊 **Analytics Dashboard**: Sync performance metrics and insights
 
-### 🔧 **Production-Ready Features**
-- **Secure Credential Management**: Encrypted storage of Wix API credentials
-- **Comprehensive Logging**: Detailed integration logs with filtering and search capabilities  
-- **Health Monitoring**: Real-time integration health checks and performance metrics
-- **Configurable Sync Settings**: Granular control over what data gets synchronized
-- **Custom Field Integration**: Seamless integration with ERPNext's custom field system
-- **Role-Based Access**: Proper user role management for integration administration
-
-### 🛡️ **Enterprise Grade**
-- **Connection Testing**: Built-in API connection validation
-- **Retry Logic**: Automatic retry with exponential backoff for failed operations
-- **Performance Optimization**: Caching and batch processing for high-volume operations
-- **Error Recovery**: Comprehensive error handling with manual recovery options
-- **Audit Trail**: Complete audit trail of all synchronization activities
-
-## Installation
+## 🛠️ Installation
 
 ### Prerequisites
 
-- **Frappe Framework**: v15.0.0 or higher
-- **ERPNext**: v15.0.0 or higher  
-- **Python**: 3.8 or higher
-- **Wix Account**: With API access enabled
-- **System Requirements**: Minimum 2GB RAM, adequate disk space
+- ERPNext v15.x
+- Frappe Framework v15.x
+- Wix Business Account with API access
+- Python 3.8+
 
-### Quick Installation
+### Step 1: Install the Application
 
-1. **Download the App**:
 ```bash
+# Navigate to your ERPNext bench directory
+cd /path/to/your/bench
+
+# Get the app from GitHub
 bench get-app https://github.com/macrobian88/wix_erpnext_integration.git
-```
 
-2. **Install on Site**:
-```bash
+# Install the app on your site
 bench --site your-site-name install-app wix_integration
+
+# Migrate to create required doctypes and custom fields
+bench --site your-site-name migrate
 ```
 
-3. **Restart Services**:
-```bash
-bench restart
-```
+### Step 2: Configure Wix API Credentials
 
-### Manual Installation (Advanced)
+1. **Get Wix API Credentials**:
+   - Log into your [Wix Developer Console](https://dev.wix.com/)
+   - Create a new app or use an existing one
+   - Note down your `App ID`, `API Key`, and `Account ID`
+   - Get your `Site ID` from your Wix site settings
 
-If you encounter the flit packaging error, follow these steps:
+2. **Configure ERPNext**:
+   - Go to **Setup → Integrations → Wix Settings**
+   - Enable the integration
+   - Enter your Wix credentials:
+     - Site ID
+     - API Key  
+     - Account ID
+   - Configure sync options as needed
+   - Save the settings
 
-1. **Clone the Repository**:
-```bash
-git clone https://github.com/macrobian88/wix_erpnext_integration.git
-cd wix_erpnext_integration
-```
+### Step 3: Test the Integration
 
-2. **Fix the Packaging Issue** (if needed):
-The repository now includes the proper module docstring fix. If you still encounter issues, ensure the `wix_integration/__init__.py` file contains the module docstring.
+1. **Test Connection**:
+   - In Wix Settings, click "Test Connection"
+   - Verify you see a success message
 
-3. **Install Manually**:
-```bash
-bench get-app file:///path/to/wix_erpnext_integration
-bench --site your-site-name install-app wix_integration
-```
+2. **Test Product Sync**:
+   - Create a test Item in ERPNext
+   - Go to **Stock → Item** and create a new item
+   - Set it as a stock item with a price
+   - The item should automatically sync to Wix (if auto-sync is enabled)
+   - Check **Wix Integration → Wix Integration Log** for sync status
 
-## Configuration
+## 📖 Usage
 
-### 1. **Obtain Wix API Credentials**
+### Product Sync
 
-1. Log in to your [Wix Developer Console](https://dev.wix.com/)
-2. Create a new app or use an existing one
-3. Generate API credentials:
-   - **Site ID**: Your Wix site identifier
-   - **API Key**: OAuth token for API access
-   - **Account ID**: Your Wix account identifier
+#### Automatic Sync
+When auto-sync is enabled in Wix Settings, items will automatically sync to Wix when:
+- A new Item is created
+- An existing Item is updated (name, description, price, image, etc.)
 
-### 2. **Configure ERPNext Settings**
+#### Manual Sync
+You can also manually sync items:
 
-1. Navigate to **Wix Settings** in ERPNext
-2. Fill in the required credentials:
+1. **Single Item Sync**:
+   ```python
+   # In ERPNext Console or custom script
+   from wix_integration.wix_integration.api.product_sync import sync_product_to_wix
+   
+   item_doc = frappe.get_doc("Item", "ITEM-001")
+   result = sync_product_to_wix(item_doc, "manual")
+   print(result)
    ```
-   Site ID: [Your Wix Site ID]
-   API Key: [Your Wix API Key]  
-   Account ID: [Your Wix Account ID]
+
+2. **Bulk Sync**:
+   ```python
+   from wix_integration.wix_integration.api.product_sync import bulk_sync_items
+   
+   # Sync all stock items
+   result = bulk_sync_items({"is_stock_item": 1, "disabled": 0})
+   print(result)
    ```
-3. Configure sync options:
-   - ✅ Enable Wix Integration
-   - ✅ Auto Sync Items
-   - ✅ Sync Item Name
-   - ✅ Sync Item Description  
-   - ✅ Sync Item Price
-   - ✅ Sync Item Images
 
-4. **Test the Connection**:
-   Click "Test Connection" to verify your credentials are working properly.
+### Monitoring Sync Operations
 
-### 3. **Advanced Configuration**
+1. **Integration Logs**: Go to **Wix Integration → Wix Integration Log**
+2. **Item Mappings**: Go to **Wix Integration → Wix Item Mapping**  
+3. **Category Mappings**: Go to **Wix Integration → Wix Category Mapping**
 
-**Sync Settings**:
-- **Retry Attempts**: Number of retry attempts for failed syncs (default: 3)
-- **Timeout**: Request timeout in seconds (default: 30)
-- **Log Level**: Logging detail level (INFO recommended)
-- **Test Mode**: Enable for testing without affecting live data
+### Webhook Configuration
 
-**Webhook Configuration**:
-- **Webhook URL**: Automatically generated for receiving Wix updates
-- **Webhook Secret**: Security token for webhook validation (auto-generated)
+To receive real-time updates from Wix:
 
-## Usage
+1. **Set up Webhook in Wix**:
+   - In your Wix Developer Console, configure webhooks
+   - Use URL: `https://your-erpnext-site.com/api/wix-webhook`
+   - Select events you want to receive (orders, products, etc.)
 
-### POC: Product Synchronization
+2. **Configure Webhook Secret** (Recommended for security):
+   - Generate a random secret key
+   - Add it to your Wix webhook configuration
+   - Enter the same secret in ERPNext Wix Settings
 
-The primary feature implemented in this POC is automatic product synchronization from ERPNext to Wix.
+## ⚙️ Configuration
 
-#### **Automatic Synchronization**
+### Wix Settings Fields
 
-When you create or update an Item in ERPNext:
+| Field | Description | Required |
+|-------|-------------|----------|
+| **Enabled** | Enable/disable the integration | ✅ |
+| **Site ID** | Your Wix site ID | ✅ |
+| **API Key** | Your Wix API key | ✅ |
+| **Account ID** | Your Wix account ID | ✅ |
+| **Test Mode** | Enable for testing (uses test endpoints) | ❌ |
+| **Auto Sync Items** | Automatically sync items when changed | ❌ |
+| **Sync Item Name** | Include item name in sync | ❌ |
+| **Sync Item Description** | Include description in sync | ❌ |
+| **Sync Item Price** | Include price in sync | ❌ |
+| **Sync Item Images** | Include images in sync | ❌ |
+| **Sync Categories** | Create/map categories in Wix | ❌ |
+| **Retry Attempts** | Number of retry attempts on failure | ❌ |
+| **Timeout Seconds** | API request timeout | ❌ |
 
-1. **Item Creation**: New items are automatically created as products in Wix
-2. **Item Updates**: Changes to existing items update the corresponding Wix products  
-3. **Real-time Sync**: Changes are synchronized immediately upon saving
+### Custom Fields Added to ERPNext
 
-#### **Supported Item Fields**
+The application automatically adds these custom fields to ERPNext:
 
-The following ERPNext Item fields are synchronized to Wix:
+#### Item DocType
+- `wix_product_id`: Wix Product ID
+- `wix_sync_status`: Sync status (Not Synced/Synced/Error/Pending)
+- `wix_last_sync`: Last sync timestamp
 
-| ERPNext Field | Wix Product Field | Notes |
-|--------------|-------------------|-------|
-| Item Name | Product Name | Primary product identifier |
-| Item Code | SKU | Stock keeping unit |
-| Description | Product Description | HTML description support |
-| Standard Rate | Price | Converted to Wix pricing format |
-| Image | Product Image | Full URL resolution |
-| Brand | Brand | Product brand information |
-| Weight per Unit | Shipping Weight | Physical properties |
-| Barcode | Barcode | Product barcode |
+#### Sales Order DocType  
+- `wix_order_id`: Original Wix Order ID
 
-#### **Manual Synchronization**
+## 🔧 API Reference
 
-For testing purposes, you can trigger manual synchronization:
+### Product Sync Functions
 
-1. Go to **Wix Settings**
-2. Enter an Item Code in the "Manual Sync" section  
-3. Click "Trigger Sync" to manually synchronize a specific item
+```python
+# Manual sync single product
+sync_product_to_wix(item_doc, trigger_type="manual")
 
-### Monitoring and Troubleshooting
+# Bulk sync with filters
+bulk_sync_items(filters={"item_group": "Electronics"})
 
-#### **Integration Logs**
-
-Monitor synchronization activities in **Wix Integration Log**:
-
-- **Success Logs**: Successful synchronization records
-- **Error Logs**: Failed synchronization attempts with detailed error messages
-- **Filtering**: Filter by status, date, or item code
-- **Search**: Full-text search across log messages
-
-#### **Item Mapping**
-
-Track synchronized items in **Wix Item Mapping**:
-
-- **ERPNext Item Code**: Original item identifier
-- **Wix Product ID**: Generated Wix product identifier
-- **Sync Status**: Current synchronization status
-- **Last Sync**: Timestamp of last successful sync
-- **Error Details**: Detailed error information for failed syncs
-
-#### **Health Monitoring**
-
-Check integration health in **Wix Settings Dashboard**:
-
-- **Success Rate**: Percentage of successful synchronizations
-- **Total Synced**: Number of successfully synchronized items
-- **Failed Syncs**: Number of failed synchronization attempts  
-- **Recent Activity**: Timeline of recent synchronization activities
-
-### Troubleshooting Common Issues
-
-#### **Connection Errors**
-
-```
-Error: Failed to connect to Wix API
+# Get integration health status
+get_integration_health()
 ```
 
-**Solution**: 
-1. Verify your internet connection
-2. Check Wix API credentials
-3. Ensure Wix API service is operational
-4. Test connection in Wix Settings
+### Webhook Endpoints
 
-#### **Authentication Errors**
-
-```
-Error: API returned status 401: Unauthorized
-```
-
-**Solution**:
-1. Verify API Key is correct and active
-2. Check Account ID matches your Wix account
-3. Ensure Site ID corresponds to the correct site
-4. Regenerate API credentials if necessary
-
-#### **Validation Errors**
-
-```
-Error: Product name exceeds 80 character limit
-```
-
-**Solution**:
-1. Review Wix API requirements and limits
-2. Adjust ERPNext item data to meet Wix constraints
-3. Check validation logs for specific requirements
-
-#### **Sync Failures**
-
-```
-Error: Failed to sync product to Wix
-```
-
-**Solution**:
-1. Check **Wix Integration Log** for detailed error messages
-2. Verify item data completeness (name, price, etc.)
-3. Ensure item is not disabled in ERPNext
-4. Try manual synchronization for specific items
-
-## Advanced Features
-
-### Custom Field Integration
-
-The integration automatically creates custom fields in ERPNext:
-
-**Item Fields**:
-- `wix_product_id`: Wix Product identifier
-- `wix_sync_status`: Current sync status  
-- `wix_last_sync`: Last synchronization timestamp
-- `wix_sync_error`: Error details for failed syncs
-
-**Sales Order Fields**:
-- `wix_order_id`: Original Wix order identifier
-- `wix_order_status`: Wix order status
-
-### User Roles and Permissions
-
-**Wix Manager Role**: 
-- Full access to Wix Settings
-- View and manage integration logs
-- Trigger manual synchronization
-- Access health monitoring dashboard
-
-### API Endpoints
-
-**Health Check**:
-```
-GET /api/wix-health
-```
-
-**Manual Sync Trigger**:
-```
-POST /api/wix-sync/trigger
-```
-
-**Webhook Receiver**:
 ```
 POST /api/wix-webhook
 ```
 
-## Development and Customization
+## 🐛 Troubleshooting
 
-### Architecture
+### Common Issues
 
-```
-wix_integration/
-├── wix_integration/
-│   ├── doctype/              # Frappe DocTypes
-│   │   ├── wix_settings/     # Main configuration
-│   │   ├── wix_integration_log/  # Logging system
-│   │   └── wix_item_mapping/ # Sync tracking
-│   ├── api/                  # API integrations
-│   │   ├── product_sync.py   # Product synchronization
-│   │   ├── order_sync.py     # Order synchronization (future)
-│   │   └── webhooks.py       # Webhook handlers
-│   ├── tasks/                # Scheduled tasks
-│   └── wix_connector.py      # Wix API client
-├── install.py                # Installation handler
-└── hooks.py                  # Frappe hooks configuration
-```
+1. **"get_site_url() missing required argument"**
+   - **Solution**: This is fixed in v1.0.0. Update to the latest version.
 
-### Extending the Integration
+2. **Sync Status shows "Error"**
+   - Check **Wix Integration Log** for detailed error messages
+   - Verify your API credentials are correct
+   - Ensure your Wix site has the required permissions
 
-#### **Adding New Sync Fields**
+3. **Items not syncing automatically**
+   - Verify "Auto Sync Items" is enabled in Wix Settings
+   - Check that the item is a stock item and not disabled
+   - Look for errors in Integration Log
 
-1. **Modify Transform Function** in `product_sync.py`:
-```python
-def _transform_erpnext_to_wix(self, item_doc):
-    # Add new field mapping
-    if item_doc.your_custom_field:
-        wix_product["customField"] = item_doc.your_custom_field
-```
+4. **Webhook not receiving data**
+   - Verify webhook URL is accessible from internet
+   - Check webhook signature configuration
+   - Ensure webhook events are properly configured in Wix
 
-2. **Update Validation** in the same file:
-```python
-def _validate_wix_product_data(self, product_data):
-    # Add validation for new field
-    if not product_data.get('customField'):
-        self.validation_errors.append("Custom field is required")
-```
+### Debug Mode
 
-#### **Adding New DocType Sync**
+Enable debug logging by setting log level to "DEBUG" in Wix Settings.
 
-1. **Create API Module**: `api/your_doctype_sync.py`
-2. **Add Hook** in `hooks.py`:
-```python
-doc_events = {
-    "Your DocType": {
-        "after_insert": "wix_integration.wix_integration.api.your_doctype_sync.sync_to_wix"
-    }
-}
-```
+## 🔐 Security
 
-### Testing
+- **API Keys**: Stored encrypted in database
+- **Webhook Signatures**: HMAC verification supported  
+- **HTTPS**: All API calls use HTTPS
+- **Rate Limiting**: Respects Wix API rate limits
+- **Error Logging**: Sensitive data excluded from logs
 
-#### **Unit Testing**
+## 🧪 Testing
 
+### Unit Tests
 ```bash
-# Run specific tests
 bench --site your-site run-tests wix_integration
-
-# Run with coverage
-bench --site your-site run-tests wix_integration --coverage
 ```
 
-#### **Integration Testing**
+### Manual Testing Checklist
 
-1. Enable **Test Mode** in Wix Settings
-2. Create test items in ERPNext
-3. Monitor sync results in Integration Log
-4. Verify product creation in Wix dashboard
+- [ ] Connection test passes
+- [ ] Item sync creates product in Wix
+- [ ] Item update triggers re-sync
+- [ ] Bulk sync processes multiple items
+- [ ] Error handling works correctly
+- [ ] Webhook receives and processes events
+- [ ] Logs are created for all operations
 
-## Support and Troubleshooting
+## 📊 Performance
 
-### Getting Help
+- **Sync Speed**: ~10-50 items per minute (depends on data size)
+- **API Limits**: Respects Wix API rate limits (1000 requests/hour)
+- **Background Processing**: Uses Frappe's queue system for bulk operations
+- **Error Recovery**: Automatic retries with exponential backoff
 
-1. **Documentation**: Review this README and inline code documentation
-2. **Integration Logs**: Check detailed error messages in Wix Integration Log
-3. **Health Dashboard**: Monitor integration health in Wix Settings
-4. **Community**: Post issues on the GitHub repository
-
-### Common Solutions
-
-**Performance Issues**:
-- Enable caching in Wix Settings
-- Monitor scheduled task frequency
-- Check system resource usage
-
-**Data Inconsistencies**:
-- Review field mappings in product_sync.py
-- Verify Wix API field requirements  
-- Check item data completeness in ERPNext
-
-**Connection Problems**:
-- Verify firewall settings allow HTTPS connections
-- Check Wix API service status
-- Test connection from command line
-
-## Roadmap
-
-### Upcoming Features
-
-- **Order Synchronization**: Bi-directional order sync between Wix and ERPNext
-- **Inventory Synchronization**: Real-time stock level updates  
-- **Customer Synchronization**: Customer data sync and management
-- **Advanced Product Features**: Product variants, categories, and collections
-- **Webhook Integration**: Real-time updates from Wix to ERPNext
-- **Bulk Operations**: Mass product import/export capabilities
-- **Advanced Analytics**: Detailed sync analytics and reporting
-
-### Contributing
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes with appropriate tests
-4. Submit a pull request with detailed description
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## License
+## 📝 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Disclaimer
+## 🆘 Support
 
-This integration is provided as-is for educational and development purposes. Always test thoroughly in a development environment before deploying to production. The authors are not responsible for any data loss or system issues that may occur from using this integration.
+- **Issues**: [GitHub Issues](https://github.com/macrobian88/wix_erpnext_integration/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/macrobian88/wix_erpnext_integration/discussions)
+- **Email**: developer@example.com
+
+## 📚 Resources
+
+- [Wix Stores API Documentation](https://dev.wix.com/docs/rest/business-solutions/stores)
+- [ERPNext Developer Documentation](https://frappeframework.com/docs)
+- [Frappe Framework Documentation](https://frappeframework.com/docs)
+
+## 🗺️ Roadmap
+
+### Version 1.1 (Next Release)
+- [ ] Enhanced error handling and recovery
+- [ ] Order sync (Wix → ERPNext)  
+- [ ] Inventory level synchronization
+- [ ] Price synchronization
+- [ ] Improved webhook processing
+
+### Version 2.0 (Future)
+- [ ] Full bidirectional sync
+- [ ] Advanced mapping rules
+- [ ] Custom field mapping
+- [ ] Multi-site support
+- [ ] Analytics dashboard
+- [ ] Automated conflict resolution
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: September 2025  
-**Compatibility**: Frappe v15+, ERPNext v15+
+**Built with ❤️ for the ERPNext and Wix community**
