@@ -1,3 +1,1 @@
-wix_integration.patches.v1_0.add_wix_fields_to_item
-wix_integration.patches.v1_0.add_wix_fields_to_sales_order
-wix_integration.patches.v1_0.add_wix_fields_to_customer
+wix_integration.wix_integration.patches.add_wix_custom_fields
