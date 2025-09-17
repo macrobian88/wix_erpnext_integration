@@ -7,8 +7,8 @@ app_license = "MIT"
 app_version = "1.0.0"
 required_apps = ["frappe", "erpnext"]
 
-# Installation hooks
-before_install = "wix_integration.install.install_wix_integration"
+# Installation hooks - Fix the function name
+after_install = "wix_integration.install.after_install"
 
 # Fixtures
 fixtures = [
