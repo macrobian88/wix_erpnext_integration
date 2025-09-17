@@ -1,149 +1,132 @@
 # -*- coding: utf-8 -*-
-"""Installation and setup functions for Wix Integration app"""
+"""Production Installation and Setup Module
+
+This module handles the installation, configuration, and validation
+of the Wix ERPNext integration in production environments.
+"""
 
 import frappe
+import json
+from datetime import datetime
 from frappe import _
-from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+from frappe.utils import get_site_url, get_fullname
 
-def after_install():
-	"""Run after app installation"""
-	try:
-		frappe.logger().info("Starting Wix Integration app installation...")
+class WixIntegrationInstaller:
+	"""Production-grade installer for Wix ERPNext integration"""
+	
+	def __init__(self):
+		self.installation_log = []
+		self.errors = []
+		self.warnings = []
+	
+	def install(self):
+		"""Main installation method"""
+		try:
+			self.log_step("Starting Wix ERPNext Integration installation...")
+			
+			# Step 1: Validate prerequisites
+			self.validate_prerequisites()
+			
+			# Step 2: Create default settings
+			self.create_default_settings()
+			
+			# Step 3: Setup custom fields
+			self.setup_custom_fields()
+			
+			# Step 4: Create default integration log entries
+			self.setup_integration_logging()
+			
+			# Step 5: Setup user roles and permissions
+			self.setup_user_roles()
+			
+			# Step 6: Create sample documentation
+			self.create_documentation()
+			
+			# Step 7: Validate installation
+			self.validate_installation()
+			
+			self.log_step("Installation completed successfully!")
+			return self.generate_installation_report()
+			
+		except Exception as e:
+			self.log_error(f"Installation failed: {str(e)}")
+			raise
+	
+	def validate_prerequisites(self):
+		"""Validate system prerequisites"""
+		self.log_step("Validating prerequisites...")
 		
-		# Create custom fields
-		create_wix_custom_fields()
+		# Check Frappe/ERPNext version
+		frappe_version = frappe.__version__
+		if not self.is_version_compatible(frappe_version, "15.0.0"):
+			self.log_warning(f"Frappe version {frappe_version} may not be fully compatible. Recommended: 15.0.0+")
 		
-		# Create custom role
-		create_wix_manager_role()
+		# Check required modules
+		required_modules = ['erpnext']
+		for module in required_modules:
+			try:
+				__import__(module)
+			except ImportError:
+				self.log_error(f"Required module '{module}' is not available")
 		
-		# Set up default settings
-		setup_default_settings()
+		# Check system requirements
+		self.validate_system_requirements()
 		
-		# Create sample data if in development
-		if frappe.conf.get('developer_mode'):
-			create_sample_data()
-		
-		frappe.db.commit()
-		frappe.logger().info("Wix Integration app installed successfully!")
-		
-	except Exception as e:
-		frappe.log_error(f"Error during Wix Integration installation: {str(e)}", "Installation Error")
-		frappe.throw(_("Installation failed. Please check error logs."))
-
-def create_wix_custom_fields():
-	"""Create custom fields for Wix integration"""
-	try:
-		# Custom fields for Item doctype
-		item_custom_fields = {
-			"Item": [
-				{
-					'fieldname': 'wix_sync_section',
-					'label': 'Wix Integration',
-					'fieldtype': 'Section Break',
-					'insert_after': 'website_image',
-					'collapsible': 1
-				},
-				{
-					'fieldname': 'sync_to_wix',
-					'label': 'Sync to Wix',
-					'fieldtype': 'Check',
-					'insert_after': 'wix_sync_section',
-					'default': '0',
-					'description': 'Enable automatic sync of this item to Wix store'
-				},
-				{
-					'fieldname': 'wix_product_id',
-					'label': 'Wix Product ID',
-					'fieldtype': 'Data',
-					'insert_after': 'sync_to_wix',
-					'read_only': 1,
-					'description': 'Wix Product ID (auto-generated)'
-				},
-				{
-					'fieldname': 'wix_sync_status',
-					'label': 'Wix Sync Status',
-					'fieldtype': 'Select',
-					'insert_after': 'wix_product_id',
-					'options': 'Not Synced\nPending\nSynced\nError\nDisabled',
-					'default': 'Not Synced',
-					'read_only': 1
-				},
-				{
-					'fieldname': 'wix_last_sync',
-					'label': 'Last Wix Sync',
-					'fieldtype': 'Datetime',
-					'insert_after': 'wix_sync_status',
-					'read_only': 1,
-					'description': 'Last successful sync to Wix'
-				}
-			]
-		}
-		
-		create_custom_fields(item_custom_fields)
-		frappe.logger().info("Created custom fields for Wix integration")
-		
-	except Exception as e:
-		frappe.log_error(f"Error creating custom fields: {str(e)}", "Installation")
-		raise
-
-def create_wix_manager_role():
-	"""Create Wix Manager role with appropriate permissions"""
-	try:
-		if not frappe.db.exists("Role", "Wix Manager"):
-			role_doc = frappe.get_doc({
-				'doctype': 'Role',
-				'role_name': 'Wix Manager',
-				'desk_access': 1,
-				'is_custom': 1
-			})
-			role_doc.insert(ignore_permissions=True)
-			frappe.logger().info("Created Wix Manager role")
-		
-		# Set up role permissions for Wix Integration doctypes
-		wix_doctypes = [
-			'Wix Settings',
-			'Wix Integration Log',
-			'Wix Item Mapping',
-			'Wix Integration'
-		]
-		
-		for doctype in wix_doctypes:
-			if frappe.db.exists("DocType", doctype):
-				# Check if permission already exists
-				existing_perm = frappe.db.exists("DocPerm", {
-					"parent": doctype,
-					"role": "Wix Manager"
-				})
+		self.log_step("Prerequisites validation completed")
+	
+	def is_version_compatible(self, current_version, required_version):
+		"""Check if current version meets requirements"""
+		try:
+			current_parts = [int(x) for x in current_version.split('.')]
+			required_parts = [int(x) for x in required_version.split('.')]
+			
+			for i in range(max(len(current_parts), len(required_parts))):
+				current_part = current_parts[i] if i < len(current_parts) else 0
+				required_part = required_parts[i] if i < len(required_parts) else 0
 				
-				if not existing_perm:
-					# Add permissions for Wix Manager role
-					doc = frappe.get_doc("DocType", doctype)
-					doc.append("permissions", {
-						"role": "Wix Manager",
-						"read": 1,
-						"write": 1,
-						"create": 1,
-						"delete": 1,
-						"submit": 0,
-						"cancel": 0,
-						"amend": 0
-					})
-					doc.save(ignore_permissions=True)
-					frappe.logger().info(f"Added Wix Manager permissions to {doctype}")
+				if current_part > required_part:
+					return True
+				elif current_part < required_part:
+					return False
+			
+			return True
+		except Exception:
+			return False
+	
+	def validate_system_requirements(self):
+		"""Validate system requirements"""
+		# Check database connection
+		try:
+			frappe.db.sql("SELECT 1")
+		except Exception as e:
+			self.log_error(f"Database connection issue: {str(e)}")
 		
-	except Exception as e:
-		frappe.log_error(f"Error creating Wix Manager role: {str(e)}", "Installation")
-		raise
-
-def setup_default_settings():
-	"""Set up default Wix settings"""
-	try:
-		# Check if Wix Settings already exists
-		if not frappe.db.exists("Wix Settings", "Wix Settings"):
-			settings_doc = frappe.get_doc({
+		# Check write permissions
+		try:
+			frappe.get_doc({
+				'doctype': 'ToDo',
+				'description': 'Wix Integration Test - Safe to delete'
+			}).insert(ignore_permissions=True)
+			frappe.db.rollback()
+		except Exception as e:
+			self.log_error(f"Database write permission issue: {str(e)}")
+	
+	def create_default_settings(self):
+		"""Create default Wix settings"""
+		self.log_step("Creating default settings...")
+		
+		try:
+			# Check if settings already exist
+			existing_settings = frappe.db.exists('Wix Settings', 'Wix Settings')
+			if existing_settings:
+				self.log_warning("Wix Settings already exist. Skipping default creation.")
+				return
+			
+			# Create default settings
+			settings = frappe.get_doc({
 				'doctype': 'Wix Settings',
-				'enabled': 0,  # Disabled by default
+				'name': 'Wix Settings',
+				'enabled': 0,
 				'test_mode': 1,
 				'auto_sync_items': 1,
 				'sync_item_name': 1,
@@ -156,74 +139,314 @@ def setup_default_settings():
 				'timeout_seconds': 30,
 				'log_level': 'INFO'
 			})
-			settings_doc.insert(ignore_permissions=True)
-			frappe.logger().info("Created default Wix Settings")
-		else:
-			frappe.logger().info("Wix Settings already exists")
+			
+			settings.insert(ignore_permissions=True)
+			frappe.db.commit()
+			
+			self.log_step("Default settings created successfully")
+			
+		except Exception as e:
+			self.log_error(f"Error creating default settings: {str(e)}")
+	
+	def setup_custom_fields(self):
+		"""Setup custom fields for integration"""
+		self.log_step("Setting up custom fields...")
 		
-	except Exception as e:
-		frappe.log_error(f"Error setting up default settings: {str(e)}", "Installation")
-		raise
-
-def create_sample_data():
-	"""Create sample data for development/testing"""
-	try:
-		frappe.logger().info("Creating sample data for development...")
-		
-		# Create a sample item if none exist
-		if not frappe.db.exists("Item", "SAMPLE-WIX-001"):
-			sample_item = frappe.get_doc({
-				'doctype': 'Item',
-				'item_code': 'SAMPLE-WIX-001',
-				'item_name': 'Sample Product for Wix Integration',
-				'item_group': 'Products',
-				'description': 'This is a sample product created for Wix integration testing',
-				'is_stock_item': 1,
-				'include_item_in_manufacturing': 0,
-				'standard_rate': 99.99,
-				'sync_to_wix': 1
-			})
-			sample_item.insert(ignore_permissions=True)
-			frappe.logger().info("Created sample item for testing")
-		
-	except Exception as e:
-		frappe.log_error(f"Error creating sample data: {str(e)}", "Installation")
-		# Don't raise here as sample data is optional
-		pass
-
-def before_uninstall():
-	"""Clean up before uninstalling the app"""
-	try:
-		frappe.logger().info("Starting Wix Integration app cleanup...")
-		
-		# Remove custom fields
-		remove_custom_fields()
-		
-		# Clean up role (optional)
-		# remove_wix_manager_role()
-		
-		frappe.db.commit()
-		frappe.logger().info("Wix Integration app cleanup completed")
-		
-	except Exception as e:
-		frappe.log_error(f"Error during cleanup: {str(e)}", "Uninstall Error")
-
-def remove_custom_fields():
-	"""Remove custom fields created by the app"""
-	try:
-		custom_fields_to_remove = [
-			'Item-wix_sync_section',
-			'Item-sync_to_wix',
-			'Item-wix_product_id',
-			'Item-wix_sync_status',
-			'Item-wix_last_sync'
+		custom_fields = [
+			# Item fields
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_integration_section',
+				'label': 'Wix Integration',
+				'fieldtype': 'Section Break',
+				'collapsible': 1,
+				'description': 'Wix integration related fields'
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_product_id',
+				'label': 'Wix Product ID',
+				'fieldtype': 'Data',
+				'read_only': 1,
+				'no_copy': 1,
+				'description': 'Wix Product ID for synced items'
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_sync_status',
+				'label': 'Wix Sync Status',
+				'fieldtype': 'Select',
+				'options': 'Not Synced\nSynced\nError\nPending',
+				'default': 'Not Synced',
+				'read_only': 1,
+				'no_copy': 1
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_column_break',
+				'fieldtype': 'Column Break'
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_last_sync',
+				'label': 'Wix Last Sync',
+				'fieldtype': 'Datetime',
+				'read_only': 1,
+				'no_copy': 1
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Item',
+				'fieldname': 'wix_sync_error',
+				'label': 'Wix Sync Error',
+				'fieldtype': 'Small Text',
+				'read_only': 1,
+				'no_copy': 1
+			},
+			
+			# Sales Order fields
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Sales Order',
+				'fieldname': 'wix_integration_section',
+				'label': 'Wix Integration',
+				'fieldtype': 'Section Break',
+				'collapsible': 1
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Sales Order',
+				'fieldname': 'wix_order_id',
+				'label': 'Wix Order ID',
+				'fieldtype': 'Data',
+				'read_only': 1,
+				'no_copy': 1,
+				'description': 'Original Wix Order ID'
+			},
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Sales Order',
+				'fieldname': 'wix_order_status',
+				'label': 'Wix Order Status',
+				'fieldtype': 'Data',
+				'read_only': 1,
+				'no_copy': 1
+			},
+			
+			# Customer fields
+			{
+				'doctype': 'Custom Field',
+				'dt': 'Customer',
+				'fieldname': 'wix_customer_id',
+				'label': 'Wix Customer ID',
+				'fieldtype': 'Data',
+				'read_only': 1,
+				'no_copy': 1
+			}
 		]
 		
-		for field_name in custom_fields_to_remove:
-			if frappe.db.exists("Custom Field", field_name):
-				frappe.delete_doc("Custom Field", field_name)
-				frappe.logger().info(f"Removed custom field {field_name}")
+		created_count = 0
+		for field_config in custom_fields:
+			try:
+				# Check if field already exists
+				existing = frappe.db.exists('Custom Field', {
+					'dt': field_config['dt'],
+					'fieldname': field_config['fieldname']
+				})
+				
+				if not existing:
+					field_doc = frappe.get_doc(field_config)
+					field_doc.insert(ignore_permissions=True)
+					created_count += 1
+				
+			except Exception as e:
+				self.log_warning(f"Error creating custom field {field_config['fieldname']}: {str(e)}")
 		
-	except Exception as e:
-		frappe.log_error(f"Error removing custom fields: {str(e)}", "Cleanup")
+		frappe.db.commit()
+		self.log_step(f"Custom fields setup completed. Created {created_count} new fields.")
+	
+	def setup_integration_logging(self):
+		"""Setup integration logging structure"""
+		self.log_step("Setting up integration logging...")
+		
+		# Create a welcome log entry
+		try:
+			welcome_log = frappe.get_doc({
+				'doctype': 'Wix Integration Log',
+				'reference_doctype': 'Wix Settings',
+				'reference_name': 'Wix Settings',
+				'operation_type': 'Installation',
+				'status': 'Success',
+				'message': 'Wix ERPNext Integration installed successfully',
+				'timestamp': datetime.now(),
+				'user': get_fullname()
+			})
+			welcome_log.insert(ignore_permissions=True)
+			frappe.db.commit()
+			
+		except Exception as e:
+			self.log_warning(f"Could not create welcome log entry: {str(e)}")
+	
+	def setup_user_roles(self):
+		"""Setup user roles and permissions"""
+		self.log_step("Setting up user roles...")
+		
+		try:
+			# Create Wix Manager role if it doesn't exist
+			if not frappe.db.exists('Role', 'Wix Manager'):
+				role_doc = frappe.get_doc({
+					'doctype': 'Role',
+					'role_name': 'Wix Manager',
+					'desk_access': 1,
+					'is_custom': 1
+				})
+				role_doc.insert(ignore_permissions=True)
+				frappe.db.commit()
+				self.log_step("Created Wix Manager role")
+			
+			# Setup role permissions for doctypes
+			doctypes_permissions = [
+				'Wix Settings',
+				'Wix Integration Log',
+				'Wix Item Mapping'
+			]
+			
+			for doctype in doctypes_permissions:
+				self.ensure_role_permissions('Wix Manager', doctype)
+			
+		except Exception as e:
+			self.log_warning(f"Error setting up user roles: {str(e)}")
+	
+	def ensure_role_permissions(self, role, doctype):
+		"""Ensure role has necessary permissions for doctype"""
+		try:
+			perms = frappe.get_doc('DocPerm', {
+				'parent': doctype,
+				'role': role
+			})
+		except frappe.DoesNotExistError:
+			# Create permissions
+			perm_doc = frappe.get_doc({
+				'doctype': 'DocPerm',
+				'parent': doctype,
+				'parenttype': 'DocType',
+				'parentfield': 'permissions',
+				'role': role,
+				'read': 1,
+				'write': 1,
+				'create': 1,
+				'delete': 1,
+				'submit': 0,
+				'cancel': 0,
+				'amend': 0
+			})
+			perm_doc.insert(ignore_permissions=True)
+	
+	def create_documentation(self):
+		"""Create sample documentation and help content"""
+		self.log_step("Creating documentation...")
+		
+		# Documentation content is already provided in README and other files
+		# This is a placeholder for any additional setup documentation
 		pass
+	
+	def validate_installation(self):
+		"""Validate that installation was successful"""
+		self.log_step("Validating installation...")
+		
+		# Check if core doctypes exist
+		required_doctypes = [
+			'Wix Settings',
+			'Wix Integration Log',
+			'Wix Item Mapping'
+		]
+		
+		for doctype in required_doctypes:
+			if not frappe.db.exists('DocType', doctype):
+				self.log_error(f"Required DocType '{doctype}' is missing")
+		
+		# Check if custom fields were created
+		test_field = frappe.db.exists('Custom Field', {
+			'dt': 'Item',
+			'fieldname': 'wix_product_id'
+		})
+		
+		if not test_field:
+			self.log_warning("Some custom fields may not have been created properly")
+		
+		self.log_step("Installation validation completed")
+	
+	def log_step(self, message):
+		"""Log installation step"""
+		self.installation_log.append({
+			'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+			'type': 'INFO',
+			'message': message
+		})
+		print(f"[INFO] {message}")
+	
+	def log_warning(self, message):
+		"""Log installation warning"""
+		self.warnings.append(message)
+		self.installation_log.append({
+			'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+			'type': 'WARNING',
+			'message': message
+		})
+		print(f"[WARNING] {message}")
+	
+	def log_error(self, message):
+		"""Log installation error"""
+		self.errors.append(message)
+		self.installation_log.append({
+			'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+			'type': 'ERROR',
+			'message': message
+		})
+		print(f"[ERROR] {message}")
+	
+	def generate_installation_report(self):
+		"""Generate installation report"""
+		report = {
+			'status': 'success' if not self.errors else 'failed',
+			'errors': self.errors,
+			'warnings': self.warnings,
+			'installation_log': self.installation_log,
+			'next_steps': self.get_next_steps()
+		}
+		
+		# Save report to file if possible
+		try:
+			report_content = json.dumps(report, indent=2, default=str)
+			frappe.log_error(report_content, "Wix Integration Installation Report")
+		except Exception:
+			pass
+		
+		return report
+	
+	def get_next_steps(self):
+		"""Get next steps after installation"""
+		return [
+			"1. Go to Wix Settings and configure your Wix API credentials",
+			"2. Enable the integration and test the connection",
+			"3. Configure sync settings according to your requirements",
+			"4. Test product synchronization with a sample item",
+			"5. Monitor the Wix Integration Log for any issues",
+			"6. Assign Wix Manager role to users who need access",
+			"7. Review the README.md file for detailed usage instructions"
+		]
+
+# Installation function
+def install_wix_integration():
+	"""Install Wix ERPNext Integration"""
+	installer = WixIntegrationInstaller()
+	return installer.install()
+
+# Command line installation
+if __name__ == "__main__":
+	install_wix_integration()
