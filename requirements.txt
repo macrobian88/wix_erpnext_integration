@@ -1,0 +1,7 @@
+# Frappe framework requirements
+frappe>=15.0.0
+erpnext>=15.0.0
+
+# Additional requirements for Wix integration
+requests>=2.25.0
+cryptography>=3.4.0
