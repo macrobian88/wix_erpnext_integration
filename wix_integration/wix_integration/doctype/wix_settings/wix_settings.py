@@ -68,7 +68,8 @@ class WixSettings(Document):
 	def generate_webhook_url(self):
 		"""Generate webhook URL for Wix callbacks"""
 		if not self.webhook_url:
-			site_url = get_site_url()
+			# Fix: Pass the current site name to get_site_url()
+			site_url = get_site_url(frappe.local.site)
 			self.webhook_url = f"{site_url}/api/wix-webhook"
 	
 	def test_wix_connection(self):
