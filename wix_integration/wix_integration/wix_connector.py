@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Wix API Connector - Handles all Wix API communication with proper v3 Stores API"""
+"""Wix API Connector - Handles all Wix API communication with proper v1 Catalog API"""
 
 import frappe
 import requests
@@ -9,7 +9,7 @@ from frappe import _
 from frappe.utils import get_site_url
 
 class WixConnector:
-	"""Main class for handling Wix API connections using proper Wix Stores v3 API"""
+	"""Main class for handling Wix API connections using Wix Stores v1 Catalog API"""
 	
 	def __init__(self):
 		self.settings = self.get_settings()
@@ -73,14 +73,14 @@ class WixConnector:
 			return {'success': False, 'error': str(e)}
 	
 	def create_product(self, product_data):
-		"""Create a product in Wix using Stores v3 API"""
+		"""Create a product in Wix using Stores v1 Catalog API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v3/products"
+			url = f"{self.base_url}/stores/v1/products"
 			
-			# Prepare the request payload according to Wix API requirements
+			# Prepare the request payload according to Wix Catalog V1 API requirements
 			payload = {
 				'product': product_data
 			}
@@ -122,12 +122,12 @@ class WixConnector:
 			return {'success': False, 'error': f'Unexpected error: {str(e)}'}
 	
 	def update_product(self, product_id, product_data):
-		"""Update a product in Wix using Stores v3 API"""
+		"""Update a product in Wix using Stores v1 Catalog API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v3/products/{product_id}"
+			url = f"{self.base_url}/stores/v1/products/{product_id}"
 			
 			# Prepare the request payload
 			payload = {
@@ -175,7 +175,7 @@ class WixConnector:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v3/products/{product_id}"
+			url = f"{self.base_url}/stores/v1/products/{product_id}"
 			
 			response = requests.get(
 				url,
@@ -220,16 +220,20 @@ class WixConnector:
 			return {'success': False, 'error': f'Error uploading media: {str(e)}'}
 	
 	def create_category(self, category_data):
-		"""Create a category in Wix using Categories v3 API"""
+		"""Create a category in Wix using Categories v1 API"""
 		if not self.settings or not self.settings.enabled:
 			return {'success': False, 'error': 'Wix integration is not enabled'}
 		
 		try:
-			url = f"{self.base_url}/stores/v3/categories"
+			url = f"{self.base_url}/stores/v1/collections"
 			
-			# Prepare the request payload
+			# Prepare the request payload for V1 collections (categories)
 			payload = {
-				'category': category_data
+				'collection': {
+					'name': category_data.get('name'),
+					'description': category_data.get('description', ''),
+					'visible': category_data.get('visible', True)
+				}
 			}
 			
 			response = requests.post(
@@ -243,8 +247,8 @@ class WixConnector:
 				result = response.json()
 				return {
 					'success': True,
-					'category_id': result.get('category', {}).get('id'),
-					'category': result.get('category'),
+					'category_id': result.get('collection', {}).get('id'),
+					'category': result.get('collection'),
 					'response': result
 				}
 			else:
